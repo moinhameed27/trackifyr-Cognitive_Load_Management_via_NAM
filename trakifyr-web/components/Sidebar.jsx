@@ -50,7 +50,7 @@ export default function Sidebar() {
                 </svg>
               </div>
               <div className="min-w-0">
-                <h1 className="text-base font-semibold text-gray-900 leading-tight">trakifyr</h1>
+                <h1 className="text-base font-semibold text-gray-900 leading-tight">trackifyr</h1>
                 <p className="text-xs text-gray-500 leading-tight">Cognitive Load Estimation via Natural Activity Monitoring</p>
               </div>
             </div>

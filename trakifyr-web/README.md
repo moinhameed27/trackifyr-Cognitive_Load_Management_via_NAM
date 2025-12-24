@@ -1,6 +1,6 @@
-# trakifyr
+# trackifyr
 
-**trakifyr** - Cognitive Load Estimation via Natural Activity Monitoring
+**trackifyr** - Cognitive Load Estimation via Natural Activity Monitoring
 
 A Next.js web application for monitoring and analyzing cognitive load through natural activity monitoring.
 

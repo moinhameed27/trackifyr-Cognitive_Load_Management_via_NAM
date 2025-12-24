@@ -82,7 +82,7 @@ export default function SigninPage() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">trakifyr</h1>
+                <h1 className="text-xl font-bold text-white">trackifyr</h1>
                 <p className="text-blue-100 text-xs mt-0.5">Cognitive Load Estimation via Natural Activity Monitoring</p>
               </div>
             </div>
