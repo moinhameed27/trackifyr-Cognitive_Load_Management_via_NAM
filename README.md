@@ -27,7 +27,7 @@ This repository contains the complete Phase-I development work, including requir
 | **Nature of Project** | R&D (Research and Development) |
 | **Degree** | BS (Hons.) Computer Science |
 | **Session** | 2022-2026 |
-| **Project Advisor** | Dr. Tayyaba Tariq |
+| **Project Advisor** | Ms. Tayyaba Tariq |
 | **Institution** | Department of Computer Science, FCIT, University of the Punjab |
 
 ---
@@ -230,7 +230,7 @@ The project will be considered successful if it can:
 
 For any clarification regarding this repository or Phase-I deliverables, please contact:
 
-**Project Advisor**: Dr. Tayyaba Tariq  
+**Project Advisor**: Ms. Tayyaba Tariq  
 **Group Leader**: Muhammad Moin U Din (bcsf22m023@pucit.edu.pk)
 
 ---
