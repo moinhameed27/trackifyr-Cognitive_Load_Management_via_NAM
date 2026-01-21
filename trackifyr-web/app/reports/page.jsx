@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Reports page component - displays analytics and reports
+ * for cognitive load monitoring.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import { useEffect } from 'react'
@@ -8,9 +16,15 @@ import Header from '@/components/Header'
 import CognitiveLoadCharts from '@/components/CognitiveLoadCharts'
 import { cognitiveLoadTimeSeries, dailyEngagementData } from '@/data/cognitiveLoadData'
 
+const calculateAverage = (data, key) => {
+  if (!data || data.length === 0) return 0
+  const sum = data.reduce((acc, item) => acc + (item[key] || 0), 0)
+  return Math.round(sum / data.length)
+}
+
 export default function ReportsPage() {
   const router = useRouter()
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated } = useAuth()
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -22,15 +36,9 @@ export default function ReportsPage() {
     return null
   }
 
-  const avgLoad = Math.round(
-    cognitiveLoadTimeSeries.reduce((sum, item) => sum + item.load, 0) /
-      cognitiveLoadTimeSeries.length
-  )
-  const avgEngagement = Math.round(
-    cognitiveLoadTimeSeries.reduce((sum, item) => sum + item.engagement, 0) /
-      cognitiveLoadTimeSeries.length
-  )
-  const totalSessions = dailyEngagementData.reduce((sum, day) => sum + day.sessions, 0)
+  const avgLoad = calculateAverage(cognitiveLoadTimeSeries, 'load')
+  const avgEngagement = calculateAverage(cognitiveLoadTimeSeries, 'engagement')
+  const totalSessions = dailyEngagementData.reduce((sum, day) => sum + (day.sessions || 0), 0)
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30">

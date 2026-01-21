@@ -1,33 +1,38 @@
+/**
+ * @fileoverview SessionLogsTable component - displays session logs in a table format
+ * with cognitive load and engagement badges.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import { sessionLogs } from '@/data/cognitiveLoadData'
 
-export default function SessionLogsTable() {
-  const getLoadBadgeColor = (level) => {
-    switch (level) {
-      case 'Low':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'Medium':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'High':
-        return 'bg-red-100 text-red-800 border-red-200'
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
+const LOAD_BADGE_COLORS = {
+  Low: 'bg-green-100 text-green-800 border-green-200',
+  Medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  High: 'bg-red-100 text-red-800 border-red-200',
+}
 
-  const getEngagementBadgeColor = (level) => {
-    switch (level) {
-      case 'High':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'Medium':
-        return 'bg-purple-100 text-purple-800 border-purple-200'
-      case 'Low':
-        return 'bg-orange-100 text-orange-800 border-orange-200'
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
+const ENGAGEMENT_BADGE_COLORS = {
+  High: 'bg-blue-100 text-blue-800 border-blue-200',
+  Medium: 'bg-purple-100 text-purple-800 border-purple-200',
+  Low: 'bg-orange-100 text-orange-800 border-orange-200',
+}
+
+const DEFAULT_BADGE_COLOR = 'bg-gray-100 text-gray-800 border-gray-200'
+
+const getLoadBadgeColor = (level) => {
+  return LOAD_BADGE_COLORS[level] || DEFAULT_BADGE_COLOR
+}
+
+const getEngagementBadgeColor = (level) => {
+  return ENGAGEMENT_BADGE_COLORS[level] || DEFAULT_BADGE_COLOR
+}
+
+export default function SessionLogsTable() {
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 overflow-hidden">

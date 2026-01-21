@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Dashboard page component - displays cognitive load monitoring
+ * dashboard with statistics, charts, session logs, and feedback.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import { useEffect } from 'react'
@@ -11,6 +19,13 @@ import SessionLogsTable from '@/components/SessionLogsTable'
 import FeedbackPanel from '@/components/FeedbackPanel'
 import { currentCognitiveLoad, cognitiveLoadTimeSeries, dailyEngagementData, sessionLogs } from '@/data/cognitiveLoadData'
 
+const STATS_CARD_COLORS = {
+  indigo: 'bg-indigo-100 text-indigo-600',
+  green: 'bg-green-100 text-green-600',
+  blue: 'bg-blue-100 text-blue-600',
+  purple: 'bg-purple-100 text-purple-600',
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { isAuthenticated, user } = useAuth()
@@ -21,20 +36,18 @@ export default function DashboardPage() {
     }
   }, [isAuthenticated, router])
 
-
   if (!isAuthenticated) {
     return null
   }
 
-  // Calculate statistics
-  const avgLoad = Math.round(
-    cognitiveLoadTimeSeries.reduce((sum, item) => sum + item.load, 0) /
-      cognitiveLoadTimeSeries.length
-  )
-  const avgEngagement = Math.round(
-    cognitiveLoadTimeSeries.reduce((sum, item) => sum + item.engagement, 0) /
-      cognitiveLoadTimeSeries.length
-  )
+  const calculateAverage = (data, key) => {
+    if (!data || data.length === 0) return 0
+    const sum = data.reduce((acc, item) => acc + (item[key] || 0), 0)
+    return Math.round(sum / data.length)
+  }
+
+  const avgLoad = calculateAverage(cognitiveLoadTimeSeries, 'load')
+  const avgEngagement = calculateAverage(cognitiveLoadTimeSeries, 'engagement')
   const totalSessions = sessionLogs.length
   const todaySessions = sessionLogs.filter(s => 
     new Date(s.time).toDateString() === new Date().toDateString()
@@ -91,12 +104,6 @@ export default function DashboardPage() {
     },
   ]
 
-  const colorClasses = {
-    indigo: 'bg-indigo-100 text-indigo-600',
-    green: 'bg-green-100 text-green-600',
-    blue: 'bg-blue-100 text-blue-600',
-    purple: 'bg-purple-100 text-purple-600',
-  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30">
@@ -116,7 +123,7 @@ export default function DashboardPage() {
                 className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md border border-gray-100 p-4 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <div className={`p-2 rounded-lg ${colorClasses[stat.color] || 'bg-gray-100 text-gray-600'}`}>
+                  <div className={`p-2 rounded-lg ${STATS_CARD_COLORS[stat.color] || 'bg-gray-100 text-gray-600'}`}>
                     {stat.icon}
                   </div>
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${

@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Profile page component - displays and allows editing of user profile.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -5,6 +12,9 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const VALID_ROLES = ['Student', 'Teacher']
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -15,6 +25,7 @@ export default function ProfilePage() {
     email: user?.email || '',
     role: user?.role || '',
   })
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -36,20 +47,57 @@ export default function ProfilePage() {
     return null
   }
 
+  const validateForm = () => {
+    const newErrors = {}
+    
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Full Name is required'
+    }
+    
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required'
+    } else if (!EMAIL_REGEX.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+    
+    if (!VALID_ROLES.includes(formData.role)) {
+      newErrors.role = 'Please select a valid role'
+    }
+    
+    return newErrors
+  }
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }))
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: '',
+      }))
+    }
   }
 
   const handleSave = () => {
-    if (typeof window !== 'undefined') {
-      const updatedUser = { ...user, ...formData }
-      localStorage.setItem('user', JSON.stringify(updatedUser))
-      setIsEditing(false)
-      window.location.reload()
+    const validationErrors = validateForm()
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors)
+      return
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        const updatedUser = { ...user, ...formData }
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        setIsEditing(false)
+        setErrors({})
+        window.location.reload()
+      }
+    } catch (error) {
+      setErrors({ submit: 'Failed to save profile. Please try again.' })
     }
   }
 
@@ -95,10 +143,15 @@ export default function ProfilePage() {
                     disabled={!isEditing}
                     className={`w-full px-4 py-2 border rounded-lg ${
                       isEditing
-                        ? 'border-gray-300 focus:ring-2 focus:ring-indigo-500'
+                        ? errors.fullName
+                          ? 'border-red-300 focus:ring-2 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-2 focus:ring-indigo-500'
                         : 'border-gray-200 bg-gray-50'
                     }`}
                   />
+                  {errors.fullName && (
+                    <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
+                  )}
                 </div>
 
                 <div>
@@ -113,10 +166,15 @@ export default function ProfilePage() {
                     disabled={!isEditing}
                     className={`w-full px-4 py-2 border rounded-lg ${
                       isEditing
-                        ? 'border-gray-300 focus:ring-2 focus:ring-indigo-500'
+                        ? errors.email
+                          ? 'border-red-300 focus:ring-2 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-2 focus:ring-indigo-500'
                         : 'border-gray-200 bg-gray-50'
                     }`}
                   />
+                  {errors.email && (
+                    <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                  )}
                 </div>
 
                 <div>
@@ -128,15 +186,25 @@ export default function ProfilePage() {
                     disabled={!isEditing}
                     className={`w-full px-4 py-2 border rounded-lg ${
                       isEditing
-                        ? 'border-gray-300 focus:ring-2 focus:ring-indigo-500'
+                        ? errors.role
+                          ? 'border-red-300 focus:ring-2 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-2 focus:ring-indigo-500'
                         : 'border-gray-200 bg-gray-50'
                     }`}
                   >
                     <option value="Student">Student</option>
                     <option value="Teacher">Teacher</option>
                   </select>
+                  {errors.role && (
+                    <p className="mt-1 text-sm text-red-600">{errors.role}</p>
+                  )}
                 </div>
 
+                {errors.submit && (
+                  <div className="pt-2 text-sm text-red-600">
+                    {errors.submit}
+                  </div>
+                )}
                 {isEditing && (
                   <div className="pt-4">
                     <button

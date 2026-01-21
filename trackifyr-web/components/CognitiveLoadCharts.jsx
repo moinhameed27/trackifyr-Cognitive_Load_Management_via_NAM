@@ -1,7 +1,22 @@
+/**
+ * @fileoverview CognitiveLoadCharts component - displays cognitive load and engagement
+ * data using area and bar charts.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts'
 import { cognitiveLoadTimeSeries, dailyEngagementData } from '@/data/cognitiveLoadData'
+
+const CHART_HEIGHT = 300
+const TOOLTIP_STYLE = {
+  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  border: '1px solid #e5e7eb',
+  borderRadius: '8px',
+}
 
 export default function CognitiveLoadCharts() {
   return (
@@ -14,7 +29,7 @@ export default function CognitiveLoadCharts() {
             <p className="text-sm text-gray-500 mt-1">7-day trend analysis</p>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
           <AreaChart data={cognitiveLoadTimeSeries}>
             <defs>
               <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
@@ -38,13 +53,7 @@ export default function CognitiveLoadCharts() {
               label={{ value: 'Level (%)', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
               tick={{ fontSize: 11, fill: '#6b7280' }}
             />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-              }}
-            />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend />
             <Area 
               type="monotone" 
@@ -76,7 +85,7 @@ export default function CognitiveLoadCharts() {
             <p className="text-sm text-gray-500 mt-1">Weekly performance overview</p>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
           <BarChart data={dailyEngagementData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis 
@@ -87,13 +96,7 @@ export default function CognitiveLoadCharts() {
               label={{ value: 'Level (%)', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
               tick={{ fontSize: 11, fill: '#6b7280' }}
             />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-              }}
-            />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend />
             <Bar 
               dataKey="engagement" 

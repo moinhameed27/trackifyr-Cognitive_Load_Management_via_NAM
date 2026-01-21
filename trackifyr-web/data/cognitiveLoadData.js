@@ -1,4 +1,10 @@
-// Dummy data for Cognitive Load Monitoring System
+/**
+ * @fileoverview Cognitive load data module - provides dummy/mock data
+ * for cognitive load monitoring system (time series, daily engagement, session logs, feedback).
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
 
 // Cognitive load levels over time (last 7 days)
 export const cognitiveLoadTimeSeries = [

@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Sidebar component - provides main navigation menu for the application.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import Link from 'next/link'
@@ -6,7 +13,6 @@ import { usePathname } from 'next/navigation'
 export default function Sidebar() {
   const pathname = usePathname()
 
-  // Main navigation items
   const mainNavigation = [
     { 
       name: 'Dashboard', 
@@ -27,12 +33,6 @@ export default function Sidebar() {
       )
     },
   ]
-
-  // Future navigation sections can be added here
-  // const analyticsNavigation = [
-  //   { name: 'Analytics', href: '/analytics', icon: ... },
-  //   { name: 'Insights', href: '/insights', icon: ... },
-  // ]
 
   const isActive = (path) => pathname === path
 
@@ -86,30 +86,7 @@ export default function Sidebar() {
                 </Link>
               ))}
             </div>
-
-            {/* Divider for future sections */}
-            {/* <div className="pt-4 mt-4 border-t border-gray-100">
-              <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Analytics
-              </p>
-              <div className="space-y-1">
-                {analyticsNavigation.map((item) => (
-                  <Link ... />
-                ))}
-              </div>
-            </div> */}
           </nav>
-
-          {/* Bottom Section - Reserved for future use */}
-          {/* <div className="flex-shrink-0 p-4 border-t border-gray-100">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs font-medium text-gray-900 mb-1">Upgrade Plan</p>
-              <p className="text-xs text-gray-500 mb-2">Get access to advanced features</p>
-              <button className="w-full px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors">
-                Upgrade
-              </button>
-            </div>
-          </div> */}
         </div>
       </div>
     </aside>

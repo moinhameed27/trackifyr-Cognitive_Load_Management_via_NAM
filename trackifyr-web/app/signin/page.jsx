@@ -1,9 +1,19 @@
+/**
+ * @fileoverview Sign-in page component - handles user authentication.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import Link from 'next/link'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MIN_PASSWORD_LENGTH = 1
 
 export default function SigninPage() {
   const router = useRouter()
@@ -22,6 +32,24 @@ export default function SigninPage() {
     setMounted(true)
   }, [])
 
+  const validateForm = () => {
+    const newErrors = {}
+    
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required'
+    } else if (!EMAIL_REGEX.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+    
+    if (!formData.password) {
+      newErrors.password = 'Password is required'
+    } else if (formData.password.length < MIN_PASSWORD_LENGTH) {
+      newErrors.password = 'Password is too short'
+    }
+
+    return newErrors
+  }
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({
@@ -39,30 +67,28 @@ export default function SigninPage() {
   const handleSubmit = (e) => {
     e.preventDefault()
     
-    const newErrors = {}
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required'
-    }
-    if (!formData.password) {
-      newErrors.password = 'Password is required'
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors)
+    const validationErrors = validateForm()
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors)
       return
     }
 
     setIsSubmitting(true)
 
-    setTimeout(() => {
-      const result = signin(formData.email, formData.password)
-      if (result.success) {
-        router.push('/dashboard')
-      } else {
-        setErrors({ submit: result.error || 'Invalid credentials' })
-      }
+    try {
+      setTimeout(() => {
+        const result = signin(formData.email, formData.password)
+        if (result.success) {
+          router.push('/dashboard')
+        } else {
+          setErrors({ submit: result.error || 'Invalid credentials. Please check your email and password.' })
+        }
+        setIsSubmitting(false)
+      }, 500)
+    } catch (error) {
+      setErrors({ submit: 'An error occurred during sign-in. Please try again.' })
       setIsSubmitting(false)
-    }, 500)
+    }
   }
 
   return (

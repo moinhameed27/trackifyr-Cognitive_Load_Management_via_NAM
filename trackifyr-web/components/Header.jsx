@@ -1,8 +1,18 @@
+/**
+ * @fileoverview Header component - displays page title, subtitle, current time,
+ * and user profile dropdown.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import UserProfileDropdown from './UserProfileDropdown'
+
+const TIME_UPDATE_INTERVAL = 1000
 
 export default function Header({ title, subtitle }) {
   const { user } = useAuth()
@@ -11,7 +21,7 @@ export default function Header({ title, subtitle }) {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date())
-    }, 1000)
+    }, TIME_UPDATE_INTERVAL)
     return () => clearInterval(timer)
   }, [])
 

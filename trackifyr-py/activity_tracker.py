@@ -1,23 +1,28 @@
 """
-Simple Activity Tracker
-Tracks mouse and keyboard activity and provides 10-second summaries
+Activity Tracker Module
+Tracks mouse and keyboard activity and provides interval-based summaries.
+
+Purpose: Monitors user activity (mouse movements, clicks, keyboard presses)
+         and generates periodic summaries for cognitive load analysis.
+
+Author: Muhammad Moin U Din (BCSF22M023)
+Author: Muhammad Junaid Malik (BCSF22M031)
+Author: Muhammad Subhan Ul Haq (BCSF22M043)
 """
 
 import time
 import sys
-import io
-from contextlib import redirect_stderr
 from datetime import datetime
 from threading import Thread, Lock
 from pynput import mouse, keyboard
-try:
-    import pyautogui
-    PYAutoGUI_AVAILABLE = True
-except ImportError:
-    PYAutoGUI_AVAILABLE = False
 
-# Create a filtered stderr writer to suppress pynput errors
+DEFAULT_INTERVAL_SECONDS = 10
+MOUSE_POLLING_INTERVAL = 0.1
+
 class FilteredStderr:
+    """
+    Filters stderr output to suppress pynput-related errors on Windows.
+    """
     def __init__(self, original_stderr):
         self.original_stderr = original_stderr
         self.buffer = ""
@@ -60,7 +65,14 @@ class FilteredStderr:
 _original_stderr = sys.stderr
 
 class ActivityTracker:
-    def __init__(self, interval_seconds=10):
+    """
+    Tracks mouse and keyboard activity over time intervals.
+    Provides summaries of activity percentage and event counts.
+    """
+    
+    def __init__(self, interval_seconds=DEFAULT_INTERVAL_SECONDS):
+        if interval_seconds <= 0:
+            raise ValueError("Interval seconds must be greater than 0")
         self.interval_seconds = interval_seconds
         
         # Activity tracking variables
@@ -90,44 +102,38 @@ class ActivityTracker:
         try:
             current_time = time.time()
             current_second = int(current_time)
-            # Use lock for thread safety
             with self.lock:
                 self.mouse_events += 1
-                # Mark the current second as active (using integer timestamp)
                 self.active_seconds.add(current_second)
                 self.last_activity_time = current_time
                 self.is_active = True
-        except Exception:
-            pass  # Silently ignore errors
+        except Exception as e:
+            print(f"Error tracking mouse movement: {e}", file=sys.stderr)
     
     def on_mouse_click(self, x, y, button, pressed):
         """Track mouse clicks - both press and release"""
         try:
-            # Track both press and release as activity
             current_time = time.time()
             current_second = int(current_time)
             with self.lock:
                 self.mouse_events += 1
-                # Mark the current second as active (using integer timestamp)
                 self.active_seconds.add(current_second)
                 self.last_activity_time = current_time
                 self.is_active = True
-        except Exception:
-            pass  # Silently ignore errors
+        except Exception as e:
+            print(f"Error tracking mouse click: {e}", file=sys.stderr)
     
     def poll_mouse_position(self):
         """Poll mouse position to detect movement (Windows compatibility)"""
         mouse_controller = mouse.Controller()
         while self.polling_active:
             try:
-                # Get current mouse position using pynput
                 current_pos = mouse_controller.position
                 
                 with self.lock:
                     if self.last_mouse_pos is None:
                         self.last_mouse_pos = current_pos
                     elif self.last_mouse_pos != current_pos:
-                        # Mouse moved!
                         self.mouse_events += 1
                         current_time = time.time()
                         current_second = int(current_time)
@@ -136,9 +142,10 @@ class ActivityTracker:
                         self.is_active = True
                         self.last_mouse_pos = current_pos
                 
-                time.sleep(0.1)  # Check every 100ms
-            except Exception:
-                time.sleep(0.1)
+                time.sleep(MOUSE_POLLING_INTERVAL)
+            except Exception as e:
+                print(f"Error polling mouse position: {e}", file=sys.stderr)
+                time.sleep(MOUSE_POLLING_INTERVAL)
     
     def on_key_press(self, key):
         """Track keyboard presses"""
@@ -146,40 +153,36 @@ class ActivityTracker:
             with self.lock:
                 self.keyboard_events += 1
                 current_time = time.time()
-                # Mark the current second as active (using integer timestamp)
                 current_second = int(current_time)
                 self.active_seconds.add(current_second)
                 self.last_activity_time = current_time
                 self.is_active = True
-        except Exception:
-            pass  # Silently ignore errors
+        except Exception as e:
+            print(f"Error tracking keyboard press: {e}", file=sys.stderr)
     
     def calculate_activity_percentage(self, active_time, total_time):
         """Calculate activity percentage"""
-        if total_time == 0:
+        if total_time <= 0:
             return 0.0
-        return (active_time / total_time) * 100
+        return min(100.0, max(0.0, (active_time / total_time) * 100))
     
     def generate_summary(self, session_start, session_end):
         """Generate and print activity summary"""
+        if session_end <= session_start:
+            print("Error: Invalid session time range", file=sys.stderr)
+            return
+            
         with self.lock:
             total_time = session_end - session_start
-            
-            # Count active seconds within the session period
-            # Use floor for start and ceil for end to include partial seconds
             session_start_second = int(session_start)
-            session_end_second = int(session_end) + 1  # Include the second that session_end falls in
+            session_end_second = int(session_end) + 1
             
-            # Count how many seconds in the session had activity
-            active_seconds_count = 0
-            for second in range(session_start_second, session_end_second):
-                if second in self.active_seconds:
-                    active_seconds_count += 1
+            active_seconds_count = sum(
+                1 for second in range(session_start_second, session_end_second)
+                if second in self.active_seconds
+            )
             
-            # Active time is the number of active seconds
             active_time = active_seconds_count
-            
-            # Calculate activity percentage
             activity_percentage = self.calculate_activity_percentage(active_time, total_time)
             
             print("\n" + "="*60)
@@ -291,8 +294,14 @@ class ActivityTracker:
 
 def main():
     """Main function to run the activity tracker"""
-    tracker = ActivityTracker(interval_seconds=10)
-    tracker.start_tracking()
+    try:
+        tracker = ActivityTracker(interval_seconds=DEFAULT_INTERVAL_SECONDS)
+        tracker.start_tracking()
+    except KeyboardInterrupt:
+        print("\nActivity tracker stopped by user.")
+    except Exception as e:
+        print(f"Error running activity tracker: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

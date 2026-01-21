@@ -1,9 +1,20 @@
+/**
+ * @fileoverview Sign-up page component - handles new user registration.
+ * @author Muhammad Moin U Din (BCSF22M023)
+ * @author Muhammad Junaid Malik (BCSF22M031)
+ * @author Muhammad Subhan Ul Haq (BCSF22M043)
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import Link from 'next/link'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MIN_PASSWORD_LENGTH = 6
+const DEFAULT_ROLE = 'Student'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -14,7 +25,7 @@ export default function SignupPage() {
     fullName: '',
     email: '',
     password: '',
-    role: 'Student',
+    role: DEFAULT_ROLE,
   })
 
   const [errors, setErrors] = useState({})
@@ -23,11 +34,6 @@ export default function SignupPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
-  }
 
   const validateForm = () => {
     const newErrors = {}
@@ -38,14 +44,14 @@ export default function SignupPage() {
 
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required'
-    } else if (!validateEmail(formData.email)) {
+    } else if (!EMAIL_REGEX.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address'
     }
 
     if (!formData.password) {
       newErrors.password = 'Password is required'
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters'
+    } else if (formData.password.length < MIN_PASSWORD_LENGTH) {
+      newErrors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
     }
 
     setErrors(newErrors)
@@ -75,19 +81,26 @@ export default function SignupPage() {
 
     setIsSubmitting(true)
 
-    setTimeout(() => {
-      const result = signup({
-        id: Date.now(),
-        fullName: formData.fullName,
-        email: formData.email,
-        role: formData.role,
-      })
+    try {
+      setTimeout(() => {
+        const result = signup({
+          id: Date.now(),
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim().toLowerCase(),
+          role: formData.role,
+        })
 
-      if (result.success) {
-        router.push('/signin')
-      }
+        if (result.success) {
+          router.push('/signin')
+        } else {
+          setErrors({ submit: 'Registration failed. Please try again.' })
+        }
+        setIsSubmitting(false)
+      }, 500)
+    } catch (error) {
+      setErrors({ submit: 'An error occurred during registration. Please try again.' })
       setIsSubmitting(false)
-    }, 500)
+    }
   }
 
   return (
