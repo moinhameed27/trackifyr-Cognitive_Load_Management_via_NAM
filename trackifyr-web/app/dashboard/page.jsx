@@ -1,3 +1,6 @@
+// codacy test trigger
+
+
 /**
  * @fileoverview Dashboard page component - displays cognitive load monitoring
  * dashboard with statistics, charts, session logs, and feedback.
