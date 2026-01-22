@@ -1,3 +1,6 @@
+// PR test for Codacy
+
+
 /**
  * @fileoverview Profile page component - displays and allows editing of user profile.
  * @author Muhammad Moin U Din (BCSF22M023)
