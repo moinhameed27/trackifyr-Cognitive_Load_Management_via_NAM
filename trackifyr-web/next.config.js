@@ -8,9 +8,12 @@ const nextConfig = {
   reactStrictMode: true,
   // Native driver — avoid bundling issues on Vercel.
   serverExternalPackages: ['pg'],
-  // Pin Turbopack root when a parent folder has its own lockfile (wrong inference breaks imports).
+  // Pin Turbopack root when a parent folder has its own lockfile (wrong inference breaks @/ imports).
   turbopack: {
     root: __dirname,
+    resolveAlias: {
+      '@': path.join(__dirname),
+    },
   },
 }
 
