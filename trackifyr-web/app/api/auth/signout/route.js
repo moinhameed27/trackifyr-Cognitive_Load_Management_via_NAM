@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { query } from '../../../../lib/db'
+import { query } from '../../../lib/db'
 
 export const runtime = 'nodejs'
 
