@@ -89,3 +89,7 @@ docs/_build/
 *~
 
 *DAiSEE
+
+# Allow Next.js app library code (top-level rule `lib/` is for Python)
+!trackifyr/lib/
+!trackifyr/lib/**
