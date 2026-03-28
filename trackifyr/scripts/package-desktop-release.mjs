@@ -1,6 +1,6 @@
 /**
- * Zips the Windows installer from desktop/release into public/releases/trackifyr-desktop.zip
- * so /download can link to /releases/trackifyr-desktop.zip on your deployed site.
+ * Copies the Windows installer to public/releases/trackifyr-desktop-setup.exe and zips it
+ * to public/releases/trackifyr-desktop.zip so /download can serve either from your site.
  *
  * NSIS installers are already compressed; ZIP usually saves little but keeps one file to ship.
  * If 7-Zip is installed, uses -mx=9; otherwise PowerShell Compress-Archive.
@@ -17,6 +17,7 @@ const root = path.join(__dirname, '..')
 const releaseDir = path.join(root, 'desktop', 'release')
 const outDir = path.join(root, 'public', 'releases')
 const zipPath = path.join(outDir, 'trackifyr-desktop.zip')
+const stableExePath = path.join(outDir, 'trackifyr-desktop-setup.exe')
 
 function findExe() {
   if (!fs.existsSync(releaseDir)) return null
@@ -67,10 +68,16 @@ if (seven) {
   execSync(`zip -9 -j "${zipPath}" "${exePath}"`, { stdio: 'inherit' })
 }
 
+fs.copyFileSync(exePath, stableExePath)
+const stableStat = fs.statSync(stableExePath)
+console.log(`Wrote: ${stableExePath} (${(stableStat.size / 1024 / 1024).toFixed(1)} MB)`)
+
 const outStat = fs.statSync(zipPath)
 const saved = exeStat.size > 0 ? ((1 - outStat.size / exeStat.size) * 100).toFixed(1) : '0'
 console.log(`Wrote: ${zipPath} (${(outStat.size / 1024 / 1024).toFixed(1)} MB, ~${saved}% vs raw exe)`)
-console.log('\nCommit public/releases/trackifyr-desktop.zip and deploy, or set NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL to a hosted URL.')
+console.log(
+  '\nCommit public/releases/trackifyr-desktop-setup.exe (and optional .zip) and deploy, or set NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL to a hosted URL.',
+)
 if (outStat.size > 95 * 1024 * 1024) {
   console.warn('\nWarning: ZIP is very large. Vercel/Git may reject huge files; use GitHub Releases + env URL if needed.')
 }

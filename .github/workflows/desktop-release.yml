@@ -1,6 +1,6 @@
 # Builds the Electron Windows installer and publishes it to a GitHub Release.
-# After the first run, set this URL in Vercel (Environment Variables):
-# NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL=https://github.com/OWNER/REPO/releases/latest/download/trackifyr-desktop.zip
+# After the first run, /download can use GitHub latest without env vars:
+# …/releases/latest/download/trackifyr-desktop-setup.exe (and trackifyr-desktop.zip is still uploaded).
 #
 # Run: Actions → "Desktop release" → Run workflow (set version if needed).
 
@@ -45,6 +45,7 @@ jobs:
         run: |
           $exe = Get-ChildItem -Filter "trackifyr-Setup-*.exe" | Where-Object { $_.Name -notlike '__*' } | Select-Object -First 1
           if (-not $exe) { throw "No trackifyr-Setup-*.exe found in release/" }
+          Copy-Item -LiteralPath $exe.FullName -Destination (Join-Path $pwd "trackifyr-desktop-setup.exe") -Force
           $zipPath = Join-Path $pwd "trackifyr-desktop.zip"
           if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
           Compress-Archive -LiteralPath $exe.FullName -DestinationPath $zipPath -CompressionLevel Optimal
@@ -57,13 +58,11 @@ jobs:
           make_latest: true
           generate_release_notes: true
           body: |
-            **Windows** — Download **`trackifyr-desktop.zip`**, extract it, then run `trackifyr-Setup-*.exe`.
+            **Windows** — Download **`trackifyr-desktop-setup.exe`** to install, or **`trackifyr-desktop.zip`** (extract, then run the installer inside).
 
             This build is **not code-signed**; SmartScreen may show a warning.
-
-            Direct `.exe` is included as well if you prefer not to use ZIP.
           files: |
             trackifyr/desktop/release/trackifyr-desktop.zip
-            trackifyr/desktop/release/trackifyr-Setup-*.exe
+            trackifyr/desktop/release/trackifyr-desktop-setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

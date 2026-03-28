@@ -8,19 +8,24 @@ export const metadata = {
 }
 
 /**
- * When no env var and no ZIP in `public/releases/`, use GitHub Releases (latest).
- * Works with Vercel + connected repo after you run Actions → "Desktop release" once.
- * Override for forks: NEXT_PUBLIC_DESKTOP_GITHUB_ZIP
+ * When no env var and no file in `public/releases/`, use this GitHub Release asset.
+ * Tag URL tracks a specific desktop release; bump path when you publish desktop-vX.Y.Z, or set
+ * NEXT_PUBLIC_DESKTOP_GITHUB_EXE (e.g. …/releases/latest/download/trackifyr-desktop-setup.exe once CI uploads it).
  * Disable: NEXT_PUBLIC_DESKTOP_DOWNLOAD_DISABLE_GITHUB=1
  */
-const DEFAULT_GITHUB_LATEST_ZIP =
-  process.env.NEXT_PUBLIC_DESKTOP_GITHUB_ZIP?.trim() ||
-  'https://github.com/Subhanulhaq935/trackifyr-Cognitive_Load_Management_via_NAM/releases/latest/download/trackifyr-desktop.zip'
+const DEFAULT_GITHUB_LATEST_EXE =
+  process.env.NEXT_PUBLIC_DESKTOP_GITHUB_EXE?.trim() ||
+  'https://github.com/Subhanulhaq935/trackifyr-Cognitive_Load_Management_via_NAM/releases/download/desktop-v1.0.0/trackifyr-Setup-1.0.0.exe'
 
 function getBundledRelease() {
   const dir = path.join(process.cwd(), 'public', 'releases')
   try {
     if (!fs.existsSync(dir)) return null
+    const exeStable = path.join(dir, 'trackifyr-desktop-setup.exe')
+    if (fs.existsSync(exeStable)) {
+      const st = fs.statSync(exeStable)
+      return { href: '/releases/trackifyr-desktop-setup.exe', bytes: st.size, kind: 'exe' }
+    }
     const zipPath = path.join(dir, 'trackifyr-desktop.zip')
     if (fs.existsSync(zipPath)) {
       const st = fs.statSync(zipPath)
@@ -50,12 +55,10 @@ export default function DownloadPage() {
   const envUrl = process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL?.trim() || ''
   const disableGithub = process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_DISABLE_GITHUB === '1'
   const bundled = getBundledRelease()
-  const githubZip = !envUrl && !bundled && !disableGithub ? DEFAULT_GITHUB_LATEST_ZIP : ''
-  const downloadUrl = envUrl || bundled?.href || githubZip
-  const fromGithubFallback = Boolean(githubZip)
+  const githubExe = !envUrl && !bundled && !disableGithub ? DEFAULT_GITHUB_LATEST_EXE : ''
+  const downloadUrl = envUrl || bundled?.href || githubExe
   const isZip =
     Boolean(bundled && !envUrl && bundled.kind === 'zip') ||
-    fromGithubFallback ||
     (Boolean(envUrl) && envUrl.toLowerCase().endsWith('.zip'))
   const sizeLabel = !envUrl && bundled?.bytes ? formatMb(bundled.bytes) : ''
 
@@ -74,14 +77,13 @@ export default function DownloadPage() {
                   {isZip ? (
                     <>
                       Download the <strong className="font-medium text-gray-800">ZIP</strong>
-                      {sizeLabel ? ` (${sizeLabel})` : ' (compressed installer)'}. Unzip
-                      the file, then run <code className="text-xs bg-gray-100 px-1 rounded">trackifyr-Setup-…exe</code> to install. Same
-                      account as this website.
+                      {sizeLabel ? ` (${sizeLabel})` : ''}. Unzip the file, then run the installer inside. Same account as this website.
                     </>
                   ) : (
                     <>
-                      Download the installer for Windows
-                      {sizeLabel ? ` (${sizeLabel})` : ''}. After installing, the app uses the same account as this website.
+                      Download the Windows installer
+                      {sizeLabel ? ` (${sizeLabel})` : ''}. Run the <code className="text-xs bg-gray-100 px-1 rounded">.exe</code> and
+                      complete the setup wizard. Same account as this website.
                     </>
                   )}
                 </p>
@@ -89,7 +91,7 @@ export default function DownloadPage() {
                   href={downloadUrl}
                   className="flex items-center justify-center gap-2 w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transition-all duration-200"
                 >
-                  {isZip ? 'Download ZIP for Windows' : 'Download for Windows'}
+                  {isZip ? 'Download ZIP for Windows' : 'Download installer (.exe)'}
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
@@ -99,12 +101,6 @@ export default function DownloadPage() {
                     Link from <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL</code> (overrides other sources).
                   </p>
                 )}
-                {fromGithubFallback && (
-                  <p className="text-xs text-gray-500">
-                    Hosted on <strong className="font-medium text-gray-600">GitHub Releases</strong>. If you get a 404, open the repo →
-                    Actions → run <strong className="font-medium text-gray-600">Desktop release</strong> once, then try again.
-                  </p>
-                )}
               </>
             ) : (
               <>
@@ -112,8 +108,8 @@ export default function DownloadPage() {
                   Add the installer to the site by running{' '}
                   <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">npm run release:desktop</code> from the repo root
                   (after <code className="text-xs bg-gray-100 px-1 rounded">cd desktop && npm run dist</code>). That creates{' '}
-                  <code className="text-xs bg-gray-100 px-1 rounded">public/releases/trackifyr-desktop.zip</code>. Commit that file
-                  and deploy, or set{' '}
+                  <code className="text-xs bg-gray-100 px-1 rounded">public/releases/trackifyr-desktop-setup.exe</code> (and a ZIP).
+                  Commit and deploy, or set{' '}
                   <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL</code> to any public URL.
                 </p>
                 <ol className="list-decimal list-inside text-sm text-gray-600 space-y-2">
@@ -123,7 +119,10 @@ export default function DownloadPage() {
                   <li>
                     Package: <code className="text-xs bg-gray-100 px-1 rounded">npm run release:desktop</code> (uses 7-Zip max compression if installed)
                   </li>
-                  <li>Commit <code className="text-xs bg-gray-100 px-1 rounded">public/releases/trackifyr-desktop.zip</code> and push</li>
+                  <li>
+                    Commit <code className="text-xs bg-gray-100 px-1 rounded">public/releases/trackifyr-desktop-setup.exe</code> (and
+                    optional ZIP) and push
+                  </li>
                 </ol>
               </>
             )}
