@@ -7,6 +7,16 @@ export const metadata = {
   description: 'Download the trackifyr desktop session app for Windows.',
 }
 
+/**
+ * When no env var and no ZIP in `public/releases/`, use GitHub Releases (latest).
+ * Works with Vercel + connected repo after you run Actions → "Desktop release" once.
+ * Override for forks: NEXT_PUBLIC_DESKTOP_GITHUB_ZIP
+ * Disable: NEXT_PUBLIC_DESKTOP_DOWNLOAD_DISABLE_GITHUB=1
+ */
+const DEFAULT_GITHUB_LATEST_ZIP =
+  process.env.NEXT_PUBLIC_DESKTOP_GITHUB_ZIP?.trim() ||
+  'https://github.com/Subhanulhaq935/trackifyr-Cognitive_Load_Management_via_NAM/releases/latest/download/trackifyr-desktop.zip'
+
 function getBundledRelease() {
   const dir = path.join(process.cwd(), 'public', 'releases')
   try {
@@ -38,9 +48,15 @@ function formatMb(bytes) {
 
 export default function DownloadPage() {
   const envUrl = process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL?.trim() || ''
+  const disableGithub = process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_DISABLE_GITHUB === '1'
   const bundled = getBundledRelease()
-  const downloadUrl = envUrl || bundled?.href || ''
-  const isZip = Boolean(bundled && !envUrl && bundled.kind === 'zip')
+  const githubZip = !envUrl && !bundled && !disableGithub ? DEFAULT_GITHUB_LATEST_ZIP : ''
+  const downloadUrl = envUrl || bundled?.href || githubZip
+  const fromGithubFallback = Boolean(githubZip)
+  const isZip =
+    Boolean(bundled && !envUrl && bundled.kind === 'zip') ||
+    fromGithubFallback ||
+    (Boolean(envUrl) && envUrl.toLowerCase().endsWith('.zip'))
   const sizeLabel = !envUrl && bundled?.bytes ? formatMb(bundled.bytes) : ''
 
   return (
@@ -57,9 +73,10 @@ export default function DownloadPage() {
                 <p className="text-gray-600 text-sm">
                   {isZip ? (
                     <>
-                      Download the <strong className="font-medium text-gray-800">ZIP</strong> ({sizeLabel || 'compressed'}{' '}
-                      installer). Unzip the file, then run <code className="text-xs bg-gray-100 px-1 rounded">trackifyr-Setup-…exe</code>{' '}
-                      to install. Same account as this website.
+                      Download the <strong className="font-medium text-gray-800">ZIP</strong>
+                      {sizeLabel ? ` (${sizeLabel})` : ' (compressed installer)'}. Unzip
+                      the file, then run <code className="text-xs bg-gray-100 px-1 rounded">trackifyr-Setup-…exe</code> to install. Same
+                      account as this website.
                     </>
                   ) : (
                     <>
@@ -79,7 +96,13 @@ export default function DownloadPage() {
                 </a>
                 {envUrl && (
                   <p className="text-xs text-gray-500">
-                    Link from <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL</code> (overrides bundled ZIP).
+                    Link from <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL</code> (overrides other sources).
+                  </p>
+                )}
+                {fromGithubFallback && (
+                  <p className="text-xs text-gray-500">
+                    Hosted on <strong className="font-medium text-gray-600">GitHub Releases</strong>. If you get a 404, open the repo →
+                    Actions → run <strong className="font-medium text-gray-600">Desktop release</strong> once, then try again.
                   </p>
                 )}
               </>
