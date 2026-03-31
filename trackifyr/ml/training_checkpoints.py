@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import gc
 import json
+import os
 import time
+import uuid
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from ml.daisee_common import ARTIFACTS_DIR
 
@@ -35,6 +39,34 @@ def v2_val_npz(ckpt_dir: Path, limit: int | None) -> Path:
 
 def v3_train_pt(ckpt_dir: Path, limit: int | None) -> Path:
     return ckpt_dir / f"v3_train_{ckpt_limit_suffix(limit)}.pt"
+
+
+def atomic_torch_save(obj: object, path: Path) -> None:
+    """
+    Write PyTorch payload atomically: save to a unique sibling .tmp file, then replace the
+    destination. If power fails during torch.save, the previous checkpoint file stays intact.
+
+    On Windows, ``replace`` can raise ``PermissionError`` if another handle (AV, Explorer,
+    stale mmap) touches the file; we retry with backoff and a fresh temp name per call.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.stem}.{uuid.uuid4().hex}.pt.tmp")
+    torch.save(obj, tmp)
+    gc.collect()
+    last: PermissionError | None = None
+    for attempt in range(20):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError as e:
+            last = e
+            time.sleep(0.05 * (attempt + 1))
+    try:
+        tmp.unlink(missing_ok=True)
+    except PermissionError:
+        pass
+    raise last if last else RuntimeError("atomic_torch_save: replace failed")
 
 
 def save_sklearn_featurize_checkpoint(
