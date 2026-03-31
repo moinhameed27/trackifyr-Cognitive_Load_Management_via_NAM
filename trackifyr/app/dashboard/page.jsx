@@ -11,7 +11,7 @@
 
 'use client'
 
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
@@ -21,6 +21,12 @@ import CognitiveLoadCharts from '@/components/CognitiveLoadCharts'
 import SessionLogsTable from '@/components/SessionLogsTable'
 import FeedbackPanel from '@/components/FeedbackPanel'
 import { currentCognitiveLoad, cognitiveLoadTimeSeries, sessionLogs } from '@/data/cognitiveLoadData'
+
+function labelToPercent(label) {
+  if (label === 'High') return 85
+  if (label === 'Medium') return 55
+  return 30
+}
 
 const STATS_CARD_COLORS = {
   indigo: 'bg-indigo-100 text-indigo-600',
@@ -32,12 +38,41 @@ const STATS_CARD_COLORS = {
 export default function DashboardPage() {
   const router = useRouter()
   const { isAuthenticated, user, isAuthLoading } = useAuth()
+  const [live, setLive] = useState(null)
+  const [viewFilter, setViewFilter] = useState('combined')
+
+  const fetchLive = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tracking/live', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = await res.json()
+      setLive(data)
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
       router.push('/signin')
     }
   }, [isAuthLoading, isAuthenticated, router])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    fetchLive()
+    const id = setInterval(fetchLive, 2500)
+    return () => clearInterval(id)
+  }, [isAuthenticated, fetchLive])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    void fetch('/api/tracking/filter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: viewFilter }),
+    }).catch(() => {})
+  }, [viewFilter, isAuthenticated])
 
   if (isAuthLoading || !isAuthenticated) {
     return null
@@ -55,6 +90,10 @@ export default function DashboardPage() {
   const todaySessions = sessionLogs.filter(s => 
     new Date(s.time).toDateString() === new Date().toDateString()
   ).length
+
+  const liveActivityPct = live != null && typeof live.activity_load === 'number' ? Math.round(live.activity_load) : null
+  const liveEngagementPct = live != null && live.engagement ? labelToPercent(live.engagement) : null
+  const liveLoadLevel = live != null && live.final_cognitive_load ? live.final_cognitive_load : currentCognitiveLoad.level
 
   const statsCards = [
     {
@@ -107,6 +146,24 @@ export default function DashboardPage() {
     },
   ]
 
+  if (liveActivityPct != null) {
+    statsCards[0] = {
+      ...statsCards[0],
+      title: 'Activity load',
+      value: `${liveActivityPct}%`,
+      change: viewFilter === 'activity' ? 'Activity only' : viewFilter === 'webcam' ? 'Webcam only' : 'Live',
+      trend: 'up',
+    }
+  }
+  if (liveEngagementPct != null) {
+    statsCards[1] = {
+      ...statsCards[1],
+      title: 'Engagement',
+      value: `${liveEngagementPct}%`,
+      change: live?.engagement || 'Live',
+      trend: 'up',
+    }
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30">
@@ -146,11 +203,35 @@ export default function DashboardPage() {
           </div>
 
           {/* Cognitive Load Status Card */}
-          <div className="mb-4">
+          <div className="mb-4 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Tracking view:</span>
+              {['combined', 'activity', 'webcam'].map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setViewFilter(key)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    viewFilter === key
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {key === 'combined' ? 'Combined' : key === 'activity' ? 'Activity only' : 'Webcam only'}
+                </button>
+              ))}
+            </div>
+            {live != null && (
+              <p className="text-sm text-gray-600">
+                Blinks: <span className="font-semibold text-gray-900">{live.blinks ?? 0}</span>
+                {' · '}
+                Gaze away (frames): <span className="font-semibold text-gray-900">{live.gaze_away ?? 0}</span>
+              </p>
+            )}
             <CognitiveLoadCard
-              level={currentCognitiveLoad.level}
-              value={currentCognitiveLoad.value}
-              engagement={currentCognitiveLoad.engagement}
+              level={liveLoadLevel}
+              value={live != null && typeof live.activity_load === 'number' ? live.activity_load : currentCognitiveLoad.value}
+              engagement={live != null && live.engagement ? labelToPercent(live.engagement) : currentCognitiveLoad.engagement}
             />
           </div>
 
