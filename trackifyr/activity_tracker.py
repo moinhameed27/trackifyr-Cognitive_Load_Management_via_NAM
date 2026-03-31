@@ -10,9 +10,9 @@ Author: Muhammad Junaid Malik (BCSF22M031)
 Author: Muhammad Subhan Ul Haq (BCSF22M043)
 """
 
-import time 
+import json
+import time
 import sys
-from datetime import datetime
 from threading import Thread, Lock
 from pynput import mouse, keyboard
 
@@ -167,7 +167,7 @@ class ActivityTracker:
         return min(100.0, max(0.0, (active_time / total_time) * 100))
     
     def generate_summary(self, session_start, session_end):
-        """Generate and print activity summary"""
+        """Emit one JSON line per interval (stdout) with the same metrics as before."""
         if session_end <= session_start:
             print("Error: Invalid session time range", file=sys.stderr)
             return
@@ -185,28 +185,28 @@ class ActivityTracker:
             active_time = active_seconds_count
             activity_percentage = self.calculate_activity_percentage(active_time, total_time)
             
-            print("\n" + "="*60)
-            print(f"ACTIVITY SUMMARY - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print("="*60)
-            print(f"Time Period: {self.interval_seconds} seconds")
-            print(f"Total Time: {total_time:.2f} seconds")
-            print(f"Active Seconds: {active_seconds_count} seconds")
-            print(f"Activity Percentage: {activity_percentage:.2f}%")
-            print(f"Mouse Events: {self.mouse_events}")
-            print(f"Keyboard Events: {self.keyboard_events}")
-            print(f"Total Events: {self.mouse_events + self.keyboard_events}")
-            print("="*60 + "\n")
+            mouse_events = self.mouse_events
+            keyboard_events = self.keyboard_events
             
             # Reset counters and active seconds for next interval
             self.mouse_events = 0
             self.keyboard_events = 0
             self.active_seconds.clear()
+        
+        payload = {
+            "timestamp": time.time(),
+            "active_seconds": int(active_seconds_count),
+            "activity_percentage": float(activity_percentage),
+            "mouse_events": int(mouse_events),
+            "keyboard_events": int(keyboard_events),
+        }
+        print(json.dumps(payload), flush=True)
     
     def start_tracking(self):
         """Start tracking mouse and keyboard activity"""
-        print(f"Starting activity tracker...")
-        print(f"Summary will be generated every {self.interval_seconds} seconds")
-        print("Press Ctrl+C to stop tracking\n")
+        print(f"Starting activity tracker...", file=sys.stderr)
+        print(f"JSON summary every {self.interval_seconds} seconds (stdout, one object per line)", file=sys.stderr)
+        print("Press Ctrl+C to stop tracking\n", file=sys.stderr)
         
         # Filter stderr to suppress pynput internal errors
         sys.stderr = FilteredStderr(_original_stderr)
@@ -225,9 +225,9 @@ class ActivityTracker:
             time.sleep(0.3)
             if hasattr(self.mouse_listener, 'running') and self.mouse_listener.running:
                 mouse_tracking_active = True
-                print("Mouse tracking (listener): Active")
+                print("Mouse tracking (listener): Active", file=sys.stderr)
         except Exception as e:
-            print(f"Mouse tracking (listener): Failed ({str(e)})")
+            print(f"Mouse tracking (listener): Failed ({str(e)})", file=sys.stderr)
             self.mouse_listener = None
         
         # Also start polling method for better Windows compatibility
@@ -236,11 +236,11 @@ class ActivityTracker:
             self.mouse_polling_thread = Thread(target=self.poll_mouse_position, daemon=True)
             self.mouse_polling_thread.start()
             if not mouse_tracking_active:
-                print("Mouse tracking (polling): Active")
+                print("Mouse tracking (polling): Active", file=sys.stderr)
             else:
-                print("Mouse tracking (polling): Active (backup method)")
+                print("Mouse tracking (polling): Active (backup method)", file=sys.stderr)
         except Exception as e:
-            print(f"Mouse tracking (polling): Failed ({str(e)})")
+            print(f"Mouse tracking (polling): Failed ({str(e)})", file=sys.stderr)
             self.polling_active = False
         
         # Start keyboard listener with error suppression
@@ -250,15 +250,15 @@ class ActivityTracker:
                 suppress=False
             )
             self.keyboard_listener.start()
-            print("Keyboard tracking: Active")
+            print("Keyboard tracking: Active", file=sys.stderr)
         except Exception as e:
-            print(f"Keyboard tracking: Failed to start ({str(e)})")
-            print("Note: Keyboard tracking may require administrator privileges on Windows")
+            print(f"Keyboard tracking: Failed to start ({str(e)})", file=sys.stderr)
+            print("Note: Keyboard tracking may require administrator privileges on Windows", file=sys.stderr)
             self.keyboard_listener = None
         
         # Keep filtered stderr active to suppress ongoing pynput errors
         
-        print()  # Empty line for readability
+        print(file=sys.stderr)  # Empty line for readability
         
         # Main tracking loop
         try:
@@ -268,7 +268,7 @@ class ActivityTracker:
                 session_end = time.time()
                 self.generate_summary(self.start_time, session_end)
         except KeyboardInterrupt:
-            print("\n\nStopping activity tracker...")
+            print("\n\nStopping activity tracker...", file=sys.stderr)
             self.stop_tracking()
     
     def stop_tracking(self):
@@ -290,15 +290,30 @@ class ActivityTracker:
             pass
         # Restore original stderr
         sys.stderr = _original_stderr
-        print("Activity tracker stopped.")
+        print("Activity tracker stopped.", file=sys.stderr)
 
 def main():
     """Main function to run the activity tracker"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Stream activity metrics as JSON lines on stdout.")
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=float(DEFAULT_INTERVAL_SECONDS),
+        metavar="SEC",
+        help=f"Seconds between JSON summaries (default: {DEFAULT_INTERVAL_SECONDS})",
+    )
+    args = parser.parse_args()
+    if args.interval <= 0:
+        print("Error: --interval must be greater than 0", file=sys.stderr)
+        sys.exit(1)
+
     try:
-        tracker = ActivityTracker(interval_seconds=DEFAULT_INTERVAL_SECONDS)
+        tracker = ActivityTracker(interval_seconds=args.interval)
         tracker.start_tracking()
     except KeyboardInterrupt:
-        print("\nActivity tracker stopped by user.")
+        print("\nActivity tracker stopped by user.", file=sys.stderr)
     except Exception as e:
         print(f"Error running activity tracker: {e}", file=sys.stderr)
         sys.exit(1)
