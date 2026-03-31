@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:unit": "python -m unittest discover -s tests -p \"test_*.py\" -v && node --test tests/fusion.test.cjs",
     "desktop": "npm --prefix desktop start",
     "release:desktop": "node scripts/package-desktop-release.mjs"
   },
