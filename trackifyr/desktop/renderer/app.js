@@ -25,6 +25,12 @@
   const btnCamToggle = document.getElementById('btn-cam-toggle')
   const cameraStatus = document.getElementById('camera-status')
 
+  const btnTrackingStart = document.getElementById('btn-tracking-start')
+  const btnTrackingStop = document.getElementById('btn-tracking-stop')
+  const btnTrackingWebcam = document.getElementById('btn-tracking-webcam')
+  const selTrackingFilter = document.getElementById('sel-tracking-filter')
+  const trackingStatus = document.getElementById('tracking-status')
+
   try {
     localStorage.removeItem(LS_API_LEGACY)
   } catch {
@@ -240,10 +246,76 @@
     setCamera(next)
   })
 
+  let offTracking = null
+  if (window.trackifyr.onTracking) {
+    offTracking = window.trackifyr.onTracking((payload) => {
+      const fused = payload && payload.fused
+      if (!trackingStatus) return
+      if (!fused) {
+        trackingStatus.textContent = 'Waiting for data…'
+        return
+      }
+      const parts = [
+        `Load ${Number(fused.activity_load || 0).toFixed(1)}%`,
+        `Engagement ${fused.engagement}`,
+        `Cognitive ${fused.final_cognitive_load}`,
+        `Blinks ${fused.blinks}`,
+        `Gaze away ${fused.gaze_away}`,
+      ]
+      trackingStatus.textContent = parts.join(' · ')
+    })
+  }
+
+  if (btnTrackingWebcam) {
+    btnTrackingWebcam.addEventListener('click', () => {
+      const next = btnTrackingWebcam.getAttribute('aria-checked') !== 'true'
+      btnTrackingWebcam.setAttribute('aria-checked', next ? 'true' : 'false')
+    })
+  }
+
+  if (btnTrackingStart && window.trackifyr.trackingStart) {
+    btnTrackingStart.addEventListener('click', async () => {
+      const webcam = btnTrackingWebcam && btnTrackingWebcam.getAttribute('aria-checked') === 'true'
+      try {
+        await window.trackifyr.trackingStart({ webcam })
+      } catch {
+        /* ignore */
+      }
+    })
+  }
+
+  if (btnTrackingStop && window.trackifyr.trackingStop) {
+    btnTrackingStop.addEventListener('click', async () => {
+      try {
+        await window.trackifyr.trackingStop()
+      } catch {
+        /* ignore */
+      }
+      if (trackingStatus) trackingStatus.textContent = ''
+    })
+  }
+
+  if (selTrackingFilter && window.trackifyr.trackingSetFilter) {
+    selTrackingFilter.addEventListener('change', async () => {
+      const mode = selTrackingFilter.value || 'combined'
+      try {
+        await window.trackifyr.trackingSetFilter({ mode })
+      } catch {
+        /* ignore */
+      }
+    })
+  }
+
   btnSignout.addEventListener('click', async () => {
     const token = getStoredToken()
     const apiBase = getApiBase()
     if (rafId) cancelAnimationFrame(rafId)
+    if (typeof offTracking === 'function') offTracking()
+    try {
+      if (window.trackifyr.trackingStop) await window.trackifyr.trackingStop()
+    } catch {
+      /* ignore */
+    }
     await setCamera(false)
     if (token) {
       try {
