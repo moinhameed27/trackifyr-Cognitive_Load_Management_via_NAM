@@ -16,6 +16,16 @@ from ml.features_v2 import FaceMeshExtractor, extract_features_v2
 from ml.model_v3 import CognitiveLoadNet3, get_device, load_clip_tensor_v3
 
 
+def _rows_iter(df, desc: str):
+    rows = list(df.itertuples(index=False))
+    try:
+        from tqdm import tqdm
+
+        return tqdm(rows, desc=desc, unit="clip")
+    except ImportError:
+        return rows
+
+
 def eval_v1(model_path: Path, limit: int | None) -> None:
     bundle = joblib.load(model_path)
     clf = bundle["model"]
@@ -23,11 +33,13 @@ def eval_v1(model_path: Path, limit: int | None) -> None:
     if limit:
         df = df.head(limit)
     X, y = [], []
-    for row in df.itertuples(index=False):
+    for row in _rows_iter(df, "v1 Test"):
         f = extract_features_v1(Path(row.video_path))
         if f is not None:
             X.append(f)
             y.append(row.cognitive_load)
+    if not X:
+        raise RuntimeError("No v1 features extracted (check video paths / OpenCV).")
     X = np.stack(X)
     y = np.array(y)
     p = clf.predict(X)
@@ -44,13 +56,15 @@ def eval_v2(model_path: Path, limit: int | None) -> None:
     X, y = [], []
     ext = FaceMeshExtractor(static_image=True)
     try:
-        for row in df.itertuples(index=False):
+        for row in _rows_iter(df, "v2 Test"):
             f = extract_features_v2(Path(row.video_path), extractor=ext)
             if f is not None:
                 X.append(f)
                 y.append(row.cognitive_load)
     finally:
         ext.close()
+    if not X:
+        raise RuntimeError("No v2 features extracted (check video paths / MediaPipe).")
     X = np.stack(X)
     y = np.array(y)
     p = clf.predict(X)
@@ -71,13 +85,15 @@ def eval_v3(ckpt_path: Path, limit: int | None) -> None:
         df = df.head(limit)
     preds, labels = [], []
     with torch.no_grad():
-        for row in df.itertuples(index=False):
+        for row in _rows_iter(df, "v3 Test"):
             t = load_clip_tensor_v3(Path(row.video_path))
             if t is None:
                 continue
             logits = net(t.unsqueeze(0).to(device))
             preds.append(int(logits.argmax(dim=1).item()))
             labels.append(int(row.cognitive_load))
+    if not labels:
+        raise RuntimeError("No v3 clips processed (check video paths / CUDA).")
     y = np.array(labels)
     p = np.array(preds)
     print(confusion_matrix(y, p))
