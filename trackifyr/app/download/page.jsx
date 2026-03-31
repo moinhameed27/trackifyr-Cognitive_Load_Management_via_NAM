@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 export const metadata = {
   title: 'Download · trackifyr',
-  description: 'Download the trackifyr desktop session app for Windows.',
+  description: 'Download the Windows desktop app for sessions, optional camera, and local cognitive-load tracking.',
 }
 
 /**
@@ -67,7 +67,9 @@ export default function DownloadPage() {
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-5 border-b border-blue-700">
             <h1 className="text-xl font-bold text-white">Desktop app</h1>
-            <p className="text-blue-100 text-sm mt-1">Sign in, run a timed session, optional camera</p>
+            <p className="text-blue-100 text-sm mt-1">
+              Sign in, session timer, optional camera — runs local activity + ML tracking for the dashboard
+            </p>
           </div>
           <div className="px-8 py-8 space-y-5">
             {downloadUrl ? (
@@ -95,6 +97,17 @@ export default function DownloadPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                 </a>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  After installing, see{' '}
+                  <Link href="/tracking-setup" className="font-semibold text-blue-600 hover:text-blue-700">
+                    Tracking setup
+                  </Link>{' '}
+                  (same as{' '}
+                  <a href="/releases/SETUP.md" className="font-semibold text-blue-600 hover:text-blue-700">
+                    SETUP.md
+                  </a>{' '}
+                  in the release folder) for Python, models, and live dashboard steps.
+                </p>
                 {envUrl && (
                   <p className="text-xs text-gray-500">
                     Link from <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL</code> (overrides other sources).

@@ -37,13 +37,51 @@ const DEFAULT_CONFIG = {
 }
 
 const getLevelConfig = (level) => {
+  if (level == null || level === '') return DEFAULT_CONFIG
   return COGNITIVE_LOAD_LEVELS[level] || DEFAULT_CONFIG
 }
 
-export default function CognitiveLoadCard({ level, value, engagement }) {
+export default function CognitiveLoadCard({ level, value, engagement, hasData = false, updatedAt = null }) {
   const config = getLevelConfig(level)
-  const safeValue = Math.max(0, Math.min(100, value || 0))
-  const safeEngagement = Math.max(0, Math.min(100, engagement || 0))
+  const safeValue =
+    typeof value === 'number' && !Number.isNaN(value) ? Math.max(0, Math.min(100, value)) : null
+  const safeEngagement =
+    typeof engagement === 'number' && !Number.isNaN(engagement) ? Math.max(0, Math.min(100, engagement)) : null
+
+  if (!hasData) {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-l-4 border-gray-300 p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">Current Cognitive Load</h3>
+            <p className="text-sm text-gray-500 mt-0.5">From desktop tracking (no data yet)</p>
+          </div>
+          <span className="px-4 py-2 rounded-xl text-sm font-semibold border bg-gray-100 text-gray-600 border-gray-200">
+            —
+          </span>
+        </div>
+        <div className="space-y-5">
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-semibold text-gray-700">Activity load</span>
+              <span className="text-3xl font-bold text-gray-400">—</span>
+            </div>
+            <div className="relative w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div className="h-4 rounded-full bg-gray-200" style={{ width: '0%' }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-semibold text-gray-700">Engagement</span>
+              <span className="text-2xl font-bold text-gray-400">—</span>
+            </div>
+            <div className="relative w-full bg-gray-200 rounded-full h-3 overflow-hidden" />
+          </div>
+        </div>
+        <div className="mt-5 pt-4 border-t border-gray-200 text-sm text-gray-500">Start tracking in the desktop app to see live metrics.</div>
+      </div>
+    )
+  }
 
   return (
     <div className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border-l-4 ${config.border} p-6`}>
@@ -53,20 +91,20 @@ export default function CognitiveLoadCard({ level, value, engagement }) {
           <p className="text-sm text-gray-500 mt-0.5">Real-time monitoring</p>
         </div>
         <span className={`px-4 py-2 rounded-xl text-sm font-semibold border ${config.badge}`}>
-          {level}
+          {level ?? '—'}
         </span>
       </div>
-      
+
       <div className="space-y-5">
         <div>
           <div className="flex justify-between items-center mb-3">
             <span className="text-sm font-semibold text-gray-700">Load Level</span>
-            <span className="text-3xl font-bold text-gray-900">{safeValue}%</span>
+            <span className="text-3xl font-bold text-gray-900">{safeValue != null ? `${Math.round(safeValue)}%` : '—'}</span>
           </div>
           <div className="relative w-full bg-gray-200 rounded-full h-4 overflow-hidden">
             <div
               className={`h-4 rounded-full ${config.progress} transition-all duration-1000`}
-              style={{ width: `${safeValue}%` }}
+              style={{ width: `${safeValue ?? 0}%` }}
             />
           </div>
         </div>
@@ -74,12 +112,12 @@ export default function CognitiveLoadCard({ level, value, engagement }) {
         <div>
           <div className="flex justify-between items-center mb-3">
             <span className="text-sm font-semibold text-gray-700">Engagement Level</span>
-            <span className="text-2xl font-bold text-indigo-600">{safeEngagement}%</span>
+            <span className="text-2xl font-bold text-indigo-600">{safeEngagement != null ? `${Math.round(safeEngagement)}%` : '—'}</span>
           </div>
           <div className="relative w-full bg-gray-200 rounded-full h-3 overflow-hidden">
             <div
               className="bg-gradient-to-r from-indigo-500 to-blue-500 h-3 rounded-full transition-all duration-1000"
-              style={{ width: `${safeEngagement}%` }}
+              style={{ width: `${safeEngagement ?? 0}%` }}
             />
           </div>
         </div>
@@ -90,7 +128,7 @@ export default function CognitiveLoadCard({ level, value, engagement }) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span>Last updated: {new Date().toLocaleTimeString()}</span>
+          <span>Last updated: {updatedAt ? new Date(updatedAt).toLocaleTimeString() : new Date().toLocaleTimeString()}</span>
         </div>
         <div className="flex items-center space-x-1 text-xs text-green-600 font-medium">
           <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>

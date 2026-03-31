@@ -1,11 +1,13 @@
 import { getTrackingLive } from '@/lib/trackingStore'
 
-const EMPTY = {
-  activity_load: 0,
-  engagement: 'Low',
-  final_cognitive_load: 'Low',
-  blinks: 0,
-  gaze_away: 0,
+/** Payload when no bridge and no ingest has ever populated the store */
+const NO_DATA = {
+  hasData: false,
+  activity_load: null,
+  engagement: null,
+  final_cognitive_load: null,
+  blinks: null,
+  gaze_away: null,
 }
 
 export async function GET() {
@@ -14,14 +16,19 @@ export async function GET() {
     const r = await fetch(`http://127.0.0.1:${bridgePort}/bridge/live`, { cache: 'no-store' })
     if (r.ok) {
       const j = await r.json()
-      if (j && j.fused && typeof j.fused === 'object') {
-        return Response.json(j.fused)
+      if (j && j.fused && typeof j.fused === 'object' && j.fused !== null) {
+        const keys = Object.keys(j.fused)
+        if (keys.length > 0) {
+          return Response.json({ ...j.fused, hasData: true })
+        }
       }
     }
   } catch {
-    /* use in-memory store */
+    /* fall through */
   }
   const mem = getTrackingLive()
-  if (mem) return Response.json(mem)
-  return Response.json(EMPTY)
+  if (mem && typeof mem === 'object') {
+    return Response.json({ ...mem, hasData: true })
+  }
+  return Response.json(NO_DATA)
 }

@@ -55,9 +55,15 @@ jobs:
           $exe = Get-ChildItem -Filter "trackifyr-Setup-*.exe" | Where-Object { $_.Name -notlike '__*' } | Select-Object -First 1
           if (-not $exe) { throw "No trackifyr-Setup-*.exe found in release/" }
           Copy-Item -LiteralPath $exe.FullName -Destination (Join-Path $pwd "trackifyr-desktop-setup.exe") -Force
+          $setupSrc = Join-Path $env:GITHUB_WORKSPACE "trackifyr/public/releases/SETUP.md"
+          if (Test-Path $setupSrc) {
+            Copy-Item -LiteralPath $setupSrc -Destination (Join-Path $pwd "SETUP.md") -Force
+          }
           $zipPath = Join-Path $pwd "trackifyr-desktop.zip"
           if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
-          Compress-Archive -LiteralPath $exe.FullName -DestinationPath $zipPath -CompressionLevel Optimal
+          $toZip = @($exe.FullName)
+          if (Test-Path (Join-Path $pwd "SETUP.md")) { $toZip += (Join-Path $pwd "SETUP.md") }
+          Compress-Archive -LiteralPath $toZip -DestinationPath $zipPath -CompressionLevel Optimal
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -67,11 +73,12 @@ jobs:
           make_latest: true
           generate_release_notes: true
           body: |
-            **Windows** — Download **`trackifyr-desktop-setup.exe`** to install, or **`trackifyr-desktop.zip`** (extract, then run the installer inside).
+            **Windows** — Download **`trackifyr-desktop-setup.exe`** to install, or **`trackifyr-desktop.zip`** (contains the installer plus **`SETUP.md`** — Python, models, dashboard).
 
             This build is **not code-signed**; SmartScreen may show a warning.
           files: |
             trackifyr/desktop/release/trackifyr-desktop.zip
             trackifyr/desktop/release/trackifyr-desktop-setup.exe
+            trackifyr/desktop/release/SETUP.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -18,6 +18,7 @@ const releaseDir = path.join(root, 'desktop', 'release')
 const outDir = path.join(root, 'public', 'releases')
 const zipPath = path.join(outDir, 'trackifyr-desktop.zip')
 const stableExePath = path.join(outDir, 'trackifyr-desktop-setup.exe')
+const setupMdPath = path.join(outDir, 'SETUP.md')
 
 function findExe() {
   if (!fs.existsSync(releaseDir)) return null
@@ -54,18 +55,29 @@ if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath)
 const exeStat = fs.statSync(exePath)
 console.log(`Source: ${path.basename(exePath)} (${(exeStat.size / 1024 / 1024).toFixed(1)} MB)`)
 
+const setupInZip = fs.existsSync(setupMdPath)
 const seven = find7z()
 if (seven) {
-  execSync(`"${seven}" a -tzip -mx=9 "${zipPath}" "${exePath}"`, { stdio: 'inherit' })
+  const extra = setupInZip ? ` "${setupMdPath}"` : ''
+  execSync(`"${seven}" a -tzip -mx=9 "${zipPath}" "${exePath}"${extra}`, { stdio: 'inherit' })
 } else if (process.platform === 'win32') {
   const src = exePath.replace(/'/g, "''")
   const dst = zipPath.replace(/'/g, "''")
-  execSync(
-    `powershell -NoProfile -Command "Compress-Archive -LiteralPath '${src}' -DestinationPath '${dst}' -CompressionLevel Optimal -Force"`,
-    { stdio: 'inherit' },
-  )
+  if (setupInZip) {
+    const sm = setupMdPath.replace(/'/g, "''")
+    execSync(
+      `powershell -NoProfile -Command "$files = @('${src}','${sm}'); Compress-Archive -LiteralPath $files -DestinationPath '${dst}' -CompressionLevel Optimal -Force"`,
+      { stdio: 'inherit' },
+    )
+  } else {
+    execSync(
+      `powershell -NoProfile -Command "Compress-Archive -LiteralPath '${src}' -DestinationPath '${dst}' -CompressionLevel Optimal -Force"`,
+      { stdio: 'inherit' },
+    )
+  }
 } else {
-  execSync(`zip -9 -j "${zipPath}" "${exePath}"`, { stdio: 'inherit' })
+  const extra = setupInZip ? ` "${setupMdPath}"` : ''
+  execSync(`zip -9 -j "${zipPath}" "${exePath}"${extra}`, { stdio: 'inherit' })
 }
 
 fs.copyFileSync(exePath, stableExePath)
@@ -75,6 +87,11 @@ console.log(`Wrote: ${stableExePath} (${(stableStat.size / 1024 / 1024).toFixed(
 const outStat = fs.statSync(zipPath)
 const saved = exeStat.size > 0 ? ((1 - outStat.size / exeStat.size) * 100).toFixed(1) : '0'
 console.log(`Wrote: ${zipPath} (${(outStat.size / 1024 / 1024).toFixed(1)} MB, ~${saved}% vs raw exe)`)
+if (setupInZip) {
+  console.log(`Included SETUP.md in ${path.basename(zipPath)} (keep public/releases/SETUP.md committed for the site + ZIP).`)
+} else {
+  console.warn('\nNote: public/releases/SETUP.md not found — add it so the release ZIP can include setup instructions.')
+}
 console.log(
   '\nCommit public/releases/trackifyr-desktop-setup.exe (and optional .zip) and deploy, or set NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL to a hosted URL.',
 )
