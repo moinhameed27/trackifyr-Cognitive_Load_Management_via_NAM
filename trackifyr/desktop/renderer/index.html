@@ -84,6 +84,31 @@
 
             <div class="divider"></div>
 
+            <div class="tracking-block" aria-label="Cognitive tracking">
+              <p class="camera-inline-label" style="margin-bottom: 8px">Local tracking (JSON)</p>
+              <div class="tracking-actions" style="display: flex; gap: 8px; flex-wrap: wrap">
+                <button type="button" class="btn btn-primary btn-wide" id="btn-tracking-start">Start</button>
+                <button type="button" class="btn btn-wide" id="btn-tracking-stop" style="background: #e5e7eb">Stop</button>
+              </div>
+              <div class="camera-row" style="margin-top: 12px">
+                <span class="camera-inline-label">Webcam ML</span>
+                <button type="button" class="cam-toggle" id="btn-tracking-webcam" role="switch" aria-checked="false" aria-label="Toggle webcam cognitive pipeline">
+                  <span class="cam-knob"></span>
+                </button>
+              </div>
+              <label class="field" style="margin-top: 10px; display: block">
+                <span class="field-label">View</span>
+                <select id="sel-tracking-filter" class="input-select" style="width: 100%; margin-top: 4px; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb">
+                  <option value="combined" selected>Combined</option>
+                  <option value="activity">Activity only</option>
+                  <option value="webcam">Webcam only</option>
+                </select>
+              </label>
+              <p class="camera-status" id="tracking-status" role="status" style="margin-top: 8px"></p>
+            </div>
+
+            <div class="divider"></div>
+
             <div class="camera-row">
               <span class="camera-inline-label">Webcam</span>
               <button type="button" class="cam-toggle" id="btn-cam-toggle" role="switch" aria-checked="false" aria-label="Toggle webcam">
