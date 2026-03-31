@@ -84,9 +84,9 @@ def run_eval_all() -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--epochs", type=int, default=12)
+    ap.add_argument("--epochs", type=int, default=16)
     ap.add_argument("--batch-size", type=int, default=12)
-    ap.add_argument("--checkpoint-every-batches", type=int, default=3)
+    ap.add_argument("--checkpoint-every-batches", type=int, default=2)
     ap.add_argument("--checkpoint-min-secs", type=float, default=20.0)
     ap.add_argument("--retry-secs", type=int, default=60, help="Wait before retrying v3 after failure")
     ap.add_argument("--skip-eval", action="store_true")
