@@ -25,11 +25,9 @@
   const btnCamToggle = document.getElementById('btn-cam-toggle')
   const cameraStatus = document.getElementById('camera-status')
 
-  const btnTrackingStart = document.getElementById('btn-tracking-start')
-  const btnTrackingStop = document.getElementById('btn-tracking-stop')
-  const btnTrackingWebcam = document.getElementById('btn-tracking-webcam')
-  const selTrackingFilter = document.getElementById('sel-tracking-filter')
+  const btnTrackingToggle = document.getElementById('btn-tracking-toggle')
   const trackingStatus = document.getElementById('tracking-status')
+  let trackingRunning = false
 
   try {
     localStorage.removeItem(LS_API_LEGACY)
@@ -216,7 +214,7 @@
       await persistSession(data.sessionToken, data.user)
       applyUserToSessionUI(data.user)
       showView('session')
-      resetSessionPanelState()
+      await resetSessionPanelState()
     } catch {
       showLoginError('Could not reach the server.')
     } finally {
@@ -224,7 +222,7 @@
     }
   })
 
-  function resetSessionPanelState() {
+  async function resetSessionPanelState() {
     if (rafId) cancelAnimationFrame(rafId)
     rafId = null
     accumulatedMs = 0
@@ -234,6 +232,13 @@
     timerPulse.classList.remove('active')
     btnTimerToggle.textContent = 'Start'
     timerHint.textContent = 'Start or pause the session timer.'
+    try {
+      if (trackingRunning && window.trackifyr.trackingStop) await window.trackifyr.trackingStop()
+    } catch {
+      /* ignore */
+    }
+    setTrackingUiRunning(false)
+    if (trackingStatus) trackingStatus.textContent = ''
     void setCamera(false)
   }
 
@@ -246,13 +251,22 @@
     setCamera(next)
   })
 
+  function setTrackingUiRunning(running) {
+    trackingRunning = Boolean(running)
+    if (!btnTrackingToggle) return
+    btnTrackingToggle.textContent = trackingRunning ? 'Stop' : 'Start'
+    btnTrackingToggle.classList.toggle('btn-primary', !trackingRunning)
+    btnTrackingToggle.classList.toggle('btn-tracking-stop', trackingRunning)
+    btnTrackingToggle.setAttribute('aria-pressed', trackingRunning ? 'true' : 'false')
+  }
+
   let offTracking = null
   if (window.trackifyr.onTracking) {
     offTracking = window.trackifyr.onTracking((payload) => {
       const fused = payload && payload.fused
       if (!trackingStatus) return
       if (!fused) {
-        trackingStatus.textContent = 'Waiting for data…'
+        if (trackingRunning) trackingStatus.textContent = 'Waiting for data…'
         return
       }
       const parts = [
@@ -266,44 +280,30 @@
     })
   }
 
-  if (btnTrackingWebcam) {
-    btnTrackingWebcam.addEventListener('click', () => {
-      const next = btnTrackingWebcam.getAttribute('aria-checked') !== 'true'
-      btnTrackingWebcam.setAttribute('aria-checked', next ? 'true' : 'false')
-    })
-  }
-
-  if (btnTrackingStart && window.trackifyr.trackingStart) {
-    btnTrackingStart.addEventListener('click', async () => {
-      const webcam = btnTrackingWebcam && btnTrackingWebcam.getAttribute('aria-checked') === 'true'
-      try {
-        await window.trackifyr.trackingStart({ webcam })
-      } catch {
-        /* ignore */
-      }
-    })
-  }
-
-  if (btnTrackingStop && window.trackifyr.trackingStop) {
-    btnTrackingStop.addEventListener('click', async () => {
+  async function toggleTracking() {
+    if (!window.trackifyr.trackingStart || !window.trackifyr.trackingStop) return
+    if (trackingRunning) {
       try {
         await window.trackifyr.trackingStop()
       } catch {
         /* ignore */
       }
+      setTrackingUiRunning(false)
       if (trackingStatus) trackingStatus.textContent = ''
-    })
+      setTimeout(fitWindow, 80)
+      return
+    }
+    try {
+      await window.trackifyr.trackingStart({ webcam: false })
+      setTrackingUiRunning(true)
+    } catch {
+      /* ignore */
+    }
+    setTimeout(fitWindow, 80)
   }
 
-  if (selTrackingFilter && window.trackifyr.trackingSetFilter) {
-    selTrackingFilter.addEventListener('change', async () => {
-      const mode = selTrackingFilter.value || 'combined'
-      try {
-        await window.trackifyr.trackingSetFilter({ mode })
-      } catch {
-        /* ignore */
-      }
-    })
+  if (btnTrackingToggle) {
+    btnTrackingToggle.addEventListener('click', () => void toggleTracking())
   }
 
   btnSignout.addEventListener('click', async () => {
@@ -316,6 +316,8 @@
     } catch {
       /* ignore */
     }
+    setTrackingUiRunning(false)
+    if (trackingStatus) trackingStatus.textContent = ''
     await setCamera(false)
     if (token) {
       try {
@@ -356,7 +358,7 @@
         applyUserToSessionUI(data.user)
         localStorage.setItem(LS_USER, JSON.stringify(data.user))
         showView('session')
-        resetSessionPanelState()
+        await resetSessionPanelState()
       } else {
         clearSession()
         showView('login')

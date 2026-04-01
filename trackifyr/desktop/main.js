@@ -58,6 +58,7 @@ function createWindow() {
     height: 420,
     minWidth: 300,
     minHeight: 320,
+    maximizable: false,
     title: 'Trackifyr',
     backgroundColor: '#f8fafc',
     autoHideMenuBar: true,

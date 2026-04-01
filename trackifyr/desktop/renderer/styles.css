@@ -306,6 +306,18 @@ body {
   background: linear-gradient(90deg, var(--blue-700), var(--indigo-700));
 }
 
+.btn-tracking-stop {
+  padding: 10px 16px;
+  width: 100%;
+  background: var(--gray-200);
+  color: var(--gray-900);
+  box-shadow: none;
+}
+
+.btn-tracking-stop:hover:not(:disabled) {
+  background: var(--gray-300);
+}
+
 .btn-login-submit {
   display: flex;
   align-items: center;
