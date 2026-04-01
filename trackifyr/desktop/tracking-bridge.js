@@ -109,6 +109,7 @@ function tryFuse() {
       gaze_away: 0,
       face_detected: true,
       synthetic_webcam: true,
+      webcam_ml_waiting: true,
     })
     broadcastUpdate()
     void pushToNextIngest()
@@ -135,7 +136,8 @@ function tryFuse() {
     return
   }
 
-  if (!webcamEnabled || !w || typeof w.final_model_load !== 'string') {
+  const noWebcamJson = !w || typeof w.final_model_load !== 'string'
+  if (!webcamEnabled) {
     lastFused = fuseTracking({
       activity_percentage: actPct,
       final_model_load: 'Medium',
@@ -143,6 +145,17 @@ function tryFuse() {
       gaze_away: 0,
       face_detected: true,
       synthetic_webcam: true,
+      webcam_ml_waiting: false,
+    })
+  } else if (noWebcamJson) {
+    lastFused = fuseTracking({
+      activity_percentage: actPct,
+      final_model_load: 'Medium',
+      blinks: 0,
+      gaze_away: 0,
+      face_detected: true,
+      synthetic_webcam: true,
+      webcam_ml_waiting: true,
     })
   } else {
     lastFused = fuseTracking({

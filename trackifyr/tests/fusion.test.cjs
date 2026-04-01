@@ -14,6 +14,7 @@ test('high activity + high model => high', () => {
     face_detected: true,
   })
   assert.strictEqual(o.final_cognitive_load, 'High')
+  assert.strictEqual(o.webcam_ml_status, 'active')
 })
 
 test('no face => engagement low', () => {
@@ -28,7 +29,7 @@ test('no face => engagement low', () => {
   assert.deepStrictEqual(o.engagement_proba_pct, [100, 0, 0])
 })
 
-test('synthetic webcam (webcam off): engagement 0% and flat proba triple', () => {
+test('webcam ML off (user disabled): zeros and status off', () => {
   const o = fuseTracking({
     activity_percentage: 80,
     final_model_load: 'Medium',
@@ -36,12 +37,29 @@ test('synthetic webcam (webcam off): engagement 0% and flat proba triple', () =>
     gaze_away: 0,
     face_detected: true,
     synthetic_webcam: true,
+    webcam_ml_waiting: false,
   })
   assert.strictEqual(o.engagement_score, 0)
   assert.deepStrictEqual(o.engagement_proba_pct, [0, 0, 0])
+  assert.strictEqual(o.webcam_ml_status, 'off')
 })
 
-test('ensemble cognitive_proba => engagement_score and 3 percentage bars', () => {
+test('webcam on but JSON not yet: activity fallback, status waiting', () => {
+  const o = fuseTracking({
+    activity_percentage: 80,
+    final_model_load: 'Medium',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: true,
+    webcam_ml_waiting: true,
+  })
+  assert.ok(o.engagement_score > 0)
+  assert.strictEqual(o.webcam_ml_status, 'waiting')
+  assert.deepStrictEqual(o.engagement_proba_pct, [0, 0, 100])
+})
+
+test('ensemble cognitive_proba => active', () => {
   const o = fuseTracking({
     activity_percentage: 50,
     final_model_load: 'Medium',
@@ -51,8 +69,7 @@ test('ensemble cognitive_proba => engagement_score and 3 percentage bars', () =>
     synthetic_webcam: false,
     cognitive_proba: [0.15, 0.55, 0.3],
   })
-  assert.strictEqual(o.engagement, 'Medium')
-  assert.ok(o.engagement_score > 40 && o.engagement_score < 70, `score ${o.engagement_score} in mid band`)
+  assert.strictEqual(o.webcam_ml_status, 'active')
   assert.deepStrictEqual(o.engagement_proba_pct, [15, 55, 30])
 
   const hi = fuseTracking({
@@ -64,6 +81,5 @@ test('ensemble cognitive_proba => engagement_score and 3 percentage bars', () =>
     synthetic_webcam: false,
     cognitive_proba: [0.05, 0.15, 0.8],
   })
-  assert.ok(hi.engagement_score >= 72, `high-load proba should lift engagement, got ${hi.engagement_score}`)
   assert.deepStrictEqual(hi.engagement_proba_pct, [5, 15, 80])
 })

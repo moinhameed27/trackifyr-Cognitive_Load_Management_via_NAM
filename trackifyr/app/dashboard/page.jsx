@@ -270,6 +270,7 @@ export default function DashboardPage() {
               level={live?.final_cognitive_load ?? null}
               value={hasData && typeof live.activity_load === 'number' ? live.activity_load : null}
               engagementProbaPct={hasData ? live?.engagement_proba_pct : null}
+              webcamMlStatus={hasData ? live?.webcam_ml_status ?? 'active' : 'active'}
               updatedAt={lastUpdated}
             />
           </div>

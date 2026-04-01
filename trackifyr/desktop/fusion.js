@@ -4,6 +4,18 @@
 const GAZE_AWAY_ENGAGEMENT_LOW = 12
 
 /**
+ * When webcam ML output is not ready yet, derive a coarse engagement label from activity (keyboard/mouse).
+ * @param {number} activity_load 0–100
+ * @returns {'Low' | 'Medium' | 'High'}
+ */
+function engagementFromActivityLoad(activity_load) {
+  const a = Number(activity_load) || 0
+  if (a < 18) return 'Low'
+  if (a < 52) return 'Medium'
+  return 'High'
+}
+
+/**
  * @param {unknown} p [pLow, pMedium, pHigh] from mean softmax (v1+v2+v3)
  * @returns {[number, number, number] | null}
  */
@@ -59,8 +71,9 @@ function discreteEngagementToScore(engagement) {
 
 /**
  * @param {object} input
- * @param {boolean} [input.synthetic_webcam] true when webcam ML is off (activity-only or placeholder)
- * @param {number[]} [input.cognitive_proba] [pLow, pMedium, pHigh] mean softmax from v1+v2+v3 when webcam is on
+ * @param {boolean} [input.synthetic_webcam] placeholder fusion without live model line (activity-only, or waiting)
+ * @param {boolean} [input.webcam_ml_waiting] webcam enabled in app but JSON/proba not ready yet — use activity fallback, not zeros
+ * @param {number[]} [input.cognitive_proba]
  */
 function fuseTracking(input) {
   const activity_load = Number(
@@ -71,6 +84,7 @@ function fuseTracking(input) {
   const gaze_away = Number(input.gaze_away ?? 0)
   const face_detected = Boolean(input.face_detected)
   const synthetic_webcam = Boolean(input.synthetic_webcam)
+  const webcam_ml_waiting = Boolean(input.webcam_ml_waiting)
   const modelProba = normalizeProba(input.cognitive_proba)
 
   const highAct = activity_load >= 50
@@ -91,26 +105,40 @@ function fuseTracking(input) {
 
   let engagement = 'Medium'
   let engagement_score = 55
-  /** Three % metrics (Low / Medium / High class mass) for dashboard — zeros when webcam off */
   let engagement_proba_pct = [0, 0, 0]
+  /** @type {'off' | 'waiting' | 'active'} */
+  let webcam_ml_status = 'active'
 
   if (synthetic_webcam) {
-    engagement = 'Low'
-    engagement_score = 0
-    engagement_proba_pct = [0, 0, 0]
+    if (webcam_ml_waiting) {
+      webcam_ml_status = 'waiting'
+      const eng = engagementFromActivityLoad(activity_load)
+      engagement = eng
+      engagement_score = discreteEngagementToScore(eng)
+      engagement_proba_pct = labelToProbaPct(eng)
+    } else {
+      webcam_ml_status = 'off'
+      engagement = 'Low'
+      engagement_score = 0
+      engagement_proba_pct = [0, 0, 0]
+    }
   } else if (modelProba) {
+    webcam_ml_status = 'active'
     engagement_score = engagementScoreFromModelProba(input.cognitive_proba, face_detected, gaze_away)
     engagement = engagementLabelFromScore(engagement_score)
     engagement_proba_pct = probaToPctTriple(modelProba)
   } else if (!face_detected || gaze_away >= GAZE_AWAY_ENGAGEMENT_LOW) {
+    webcam_ml_status = 'active'
     engagement = 'Low'
     engagement_score = 30
     engagement_proba_pct = labelToProbaPct(engagement)
   } else if (final_model_load === 'Low') {
+    webcam_ml_status = 'active'
     engagement = 'Medium'
     engagement_score = 55
     engagement_proba_pct = labelToProbaPct(engagement)
   } else {
+    webcam_ml_status = 'active'
     engagement = final_model_load
     engagement_score = discreteEngagementToScore(engagement)
     engagement_proba_pct = labelToProbaPct(engagement)
@@ -121,6 +149,7 @@ function fuseTracking(input) {
     engagement,
     engagement_score,
     engagement_proba_pct,
+    webcam_ml_status,
     cognitive_proba: modelProba ? [modelProba[0], modelProba[1], modelProba[2]] : undefined,
     final_cognitive_load,
     blinks,
@@ -133,4 +162,5 @@ module.exports = {
   GAZE_AWAY_ENGAGEMENT_LOW,
   normalizeProba,
   engagementScoreFromModelProba,
+  engagementFromActivityLoad,
 }

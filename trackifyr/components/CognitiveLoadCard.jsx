@@ -41,6 +41,7 @@ export default function CognitiveLoadCard({
   level,
   value,
   engagementProbaPct,
+  webcamMlStatus = 'active',
   hasData = false,
   updatedAt = null,
 }) {
@@ -52,7 +53,6 @@ export default function CognitiveLoadCard({
   const pL = p ? Math.max(0, Math.min(100, Number(p[0]) || 0)) : null
   const pM = p ? Math.max(0, Math.min(100, Number(p[1]) || 0)) : null
   const pH = p ? Math.max(0, Math.min(100, Number(p[2]) || 0)) : null
-  const webcamOff = p && pL === 0 && pM === 0 && pH === 0
 
   if (!hasData) {
     return (
@@ -112,13 +112,22 @@ export default function CognitiveLoadCard({
         <div>
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-semibold text-gray-700">Engagement (model class %)</span>
-            {webcamOff ? (
+            {webcamMlStatus === 'off' ? (
               <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                 Webcam ML off
               </span>
             ) : null}
+            {webcamMlStatus === 'waiting' ? (
+              <span className="text-xs font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                Starting webcam ML…
+              </span>
+            ) : null}
           </div>
-          <p className="text-xs text-gray-500 mb-3">Low / Medium / High from fused v1+v2+v3 probabilities (sums ~100% when webcam is on).</p>
+          <p className="text-xs text-gray-500 mb-3">
+            {webcamMlStatus === 'waiting'
+              ? 'Bars use activity until the first v1+v2+v3 JSON arrives (~10s). Then they follow model probabilities.'
+              : 'Low / Medium / High from fused v1+v2+v3 probabilities when the model stream is active.'}
+          </p>
           {p ? (
             <div className="space-y-3">
               <div>
