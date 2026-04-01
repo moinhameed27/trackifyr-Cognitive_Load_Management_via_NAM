@@ -73,11 +73,17 @@ async function pushToNextIngest() {
       headers,
       body: JSON.stringify(lastFused),
     })
-    if (!res.ok && process.env.TRACKIFYR_DEBUG_INGEST) {
-      console.warn('[trackifyr] ingest failed', res.status, await res.text().catch(() => ''))
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '')
+      console.warn(
+        '[trackifyr] ingest failed',
+        res.status,
+        t ? '(with token)' : '(no token — dashboard will stay empty)',
+        errBody.slice(0, 200),
+      )
     }
-  } catch {
-    /* offline dev */
+  } catch (err) {
+    console.warn('[trackifyr] ingest network error', base, err && err.message)
   }
 }
 

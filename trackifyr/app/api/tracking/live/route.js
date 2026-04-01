@@ -15,7 +15,10 @@ const NO_DATA = {
   gaze_away: null,
 }
 
-export async function GET() {
+/**
+ * @param {import('next/server').NextRequest} request
+ */
+export async function GET(request) {
   const token = await getSessionTokenFromRequest(request)
   if (token) {
     try {

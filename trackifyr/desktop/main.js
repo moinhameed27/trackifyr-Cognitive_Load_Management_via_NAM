@@ -59,11 +59,11 @@ let mainWindow = null
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1040,
-    height: 720,
-    minWidth: 400,
-    minHeight: 420,
-    maximizable: true,
+    width: 400,
+    height: 620,
+    minWidth: 300,
+    minHeight: 320,
+    maximizable: false,
     title: 'Trackifyr',
     backgroundColor: '#f8fafc',
     autoHideMenuBar: true,
@@ -100,9 +100,16 @@ app.whenReady().then(() => {
   ipcMain.handle('trackifyr:setContentSize', (event, { width, height }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || typeof width !== 'number' || typeof height !== 'number') return
-    const w = Math.min(1920, Math.max(400, Math.round(width)))
-    const h = Math.min(1200, Math.max(420, Math.round(height)))
+    const w = Math.min(560, Math.max(300, Math.round(width)))
+    const h = Math.min(900, Math.max(320, Math.round(height)))
     win.setContentSize(w, h)
+  })
+
+  /** Keeps Python ingest URL identical to the API base the renderer uses (sign-in / me). */
+  ipcMain.handle('trackifyr:setTrackingApiBase', (_e, { base }) => {
+    const b = String(base || '').trim()
+    if (b) process.env.TRACKIFYR_API_BASE = normalizeBase(b)
+    return { ok: true, apiBase: normalizeBase(process.env.TRACKIFYR_API_BASE || API_BASE_DEFAULT) }
   })
 
   ipcMain.handle('trackifyr:setSessionToken', (_e, { token }) => {

@@ -44,7 +44,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: var(--gray-50);
   color: var(--gray-900);
-  overflow: auto;
+  overflow: hidden;
 }
 
 #app {
@@ -66,10 +66,7 @@ body {
 }
 
 #view-session.view-active {
-  align-items: stretch;
-  justify-content: flex-start;
-  width: 100%;
-  padding: 0;
+  align-items: flex-start;
 }
 
 #view-login.view-active {
@@ -177,16 +174,7 @@ body {
 }
 
 .session-card.card-compact {
-  max-width: none;
-  width: 100%;
-  min-height: 100vh;
-  border-radius: 0;
-  border: none;
-  box-shadow: none;
-}
-
-#view-session .bg-gradient {
-  display: none;
+  max-width: var(--app-column-max);
 }
 
 .card-enter {

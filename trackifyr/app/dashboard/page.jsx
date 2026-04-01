@@ -40,7 +40,10 @@ export default function DashboardPage() {
 
   const fetchLive = useCallback(async () => {
     try {
-      const res = await fetch('/api/tracking/live', { cache: 'no-store' })
+      const res = await fetch('/api/tracking/live', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
       if (!res.ok) return
       const data = await res.json()
       setLive(data)

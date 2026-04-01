@@ -5,6 +5,13 @@
 
   const apiConfig = await window.trackifyr.getConfig()
 
+  async function syncTrackingPipelineConfig() {
+    const base = getApiBase()
+    if (window.trackifyr.setTrackingApiBase) {
+      await window.trackifyr.setTrackingApiBase(base)
+    }
+  }
+
   const viewLogin = document.getElementById('view-login')
   const viewSession = document.getElementById('view-session')
   const formLogin = document.getElementById('form-login')
@@ -36,6 +43,8 @@
   function getApiBase() {
     return String(apiConfig.apiBaseDefault || 'http://localhost:3000').replace(/\/$/, '')
   }
+
+  await syncTrackingPipelineConfig()
 
   if (loginApiHint) {
     loginApiHint.textContent = `Server: ${getApiBase()}`
@@ -212,6 +221,7 @@
         return
       }
       await persistSession(data.sessionToken, data.user)
+      await syncTrackingPipelineConfig()
       if (window.trackifyr.setSessionToken) {
         await window.trackifyr.setSessionToken(data.sessionToken)
       }
@@ -341,6 +351,7 @@
       if (ok && data?.success && data?.user) {
         applyUserToSessionUI(data.user)
         localStorage.setItem(LS_USER, JSON.stringify(data.user))
+        await syncTrackingPipelineConfig()
         if (window.trackifyr.setSessionToken) {
           await window.trackifyr.setSessionToken(token)
         }

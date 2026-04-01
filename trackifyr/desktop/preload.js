@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('trackifyr', {
   getConfig: () => ipcRenderer.invoke('trackifyr:config'),
   setSessionToken: (token) =>
     ipcRenderer.invoke('trackifyr:setSessionToken', { token: token == null ? '' : String(token) }),
+  setTrackingApiBase: (base) => ipcRenderer.invoke('trackifyr:setTrackingApiBase', { base }),
   setContentSize: (payload) => ipcRenderer.invoke('trackifyr:setContentSize', payload),
   signin: (payload) => ipcRenderer.invoke('trackifyr:signin', payload),
   me: (payload) => ipcRenderer.invoke('trackifyr:me', payload),
