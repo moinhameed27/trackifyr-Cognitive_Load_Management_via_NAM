@@ -87,6 +87,11 @@ async function pushToNextIngest() {
   }
 }
 
+function pickWebcamProba(w) {
+  if (!w || !Array.isArray(w.cognitive_proba) || w.cognitive_proba.length !== 3) return undefined
+  return w.cognitive_proba
+}
+
 function tryFuse() {
   const act = lastActivity
   if (!act || typeof act.activity_percentage !== 'number') {
@@ -103,6 +108,7 @@ function tryFuse() {
       blinks: 0,
       gaze_away: 0,
       face_detected: true,
+      synthetic_webcam: true,
     })
     broadcastUpdate()
     void pushToNextIngest()
@@ -121,6 +127,8 @@ function tryFuse() {
       blinks: w.blinks,
       gaze_away: w.gaze_away,
       face_detected: w.face_detected,
+      synthetic_webcam: false,
+      cognitive_proba: pickWebcamProba(w),
     })
     broadcastUpdate()
     void pushToNextIngest()
@@ -134,6 +142,7 @@ function tryFuse() {
       blinks: 0,
       gaze_away: 0,
       face_detected: true,
+      synthetic_webcam: true,
     })
   } else {
     lastFused = fuseTracking({
@@ -142,6 +151,8 @@ function tryFuse() {
       blinks: w.blinks,
       gaze_away: w.gaze_away,
       face_detected: w.face_detected,
+      synthetic_webcam: false,
+      cognitive_proba: pickWebcamProba(w),
     })
   }
   broadcastUpdate()

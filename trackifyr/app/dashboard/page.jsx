@@ -23,6 +23,15 @@ function labelToPercent(label) {
   return 30
 }
 
+/** Prefer numeric score from fusion; fallback to label mapping for older payloads */
+function engagementDisplayPercent(live) {
+  if (!live || !live.hasData) return null
+  if (typeof live.engagement_score === 'number' && !Number.isNaN(live.engagement_score)) {
+    return live.engagement_score
+  }
+  return live.engagement ? labelToPercent(live.engagement) : null
+}
+
 const STATS_CARD_COLORS = {
   indigo: 'bg-indigo-100 text-indigo-600',
   green: 'bg-green-100 text-green-600',
@@ -37,6 +46,7 @@ export default function DashboardPage() {
   const [chartSeries, setChartSeries] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
   const [viewFilter, setViewFilter] = useState('combined')
+  const [sessions, setSessions] = useState([])
 
   const fetchLive = useCallback(async () => {
     try {
@@ -52,6 +62,20 @@ export default function DashboardPage() {
     }
   }, [])
 
+  const fetchSessions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tracking/sessions', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data?.ok && Array.isArray(data.sessions)) setSessions(data.sessions)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
       router.push('/signin')
@@ -61,9 +85,14 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isAuthenticated) return
     fetchLive()
+    fetchSessions()
     const id = setInterval(fetchLive, 2500)
-    return () => clearInterval(id)
-  }, [isAuthenticated, fetchLive])
+    const idS = setInterval(fetchSessions, 15000)
+    return () => {
+      clearInterval(id)
+      clearInterval(idS)
+    }
+  }, [isAuthenticated, fetchLive, fetchSessions])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -85,7 +114,7 @@ export default function DashboardPage() {
       const row = {
         time: label,
         load: typeof live.activity_load === 'number' ? live.activity_load : 0,
-        engagement: live.engagement ? labelToPercent(live.engagement) : 0,
+        engagement: engagementDisplayPercent(live) ?? 0,
       }
       return [...prev, row].slice(-48)
     })
@@ -115,7 +144,9 @@ export default function DashboardPage() {
     {
       title: 'Engagement',
       value:
-        hasData && live.engagement ? `${labelToPercent(live.engagement)}%` : '—',
+        hasData && engagementDisplayPercent(live) != null
+          ? `${Math.round(engagementDisplayPercent(live))}%`
+          : '—',
       change: hasData && live.engagement ? String(live.engagement) : '—',
       trend: 'neutral',
       icon: (
@@ -213,7 +244,7 @@ export default function DashboardPage() {
               hasData={hasData}
               level={live?.final_cognitive_load ?? null}
               value={hasData && typeof live.activity_load === 'number' ? live.activity_load : null}
-              engagement={hasData && live.engagement ? labelToPercent(live.engagement) : null}
+              engagement={hasData ? engagementDisplayPercent(live) : null}
               updatedAt={lastUpdated}
             />
           </div>
@@ -224,7 +255,7 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <SessionLogsTable sessions={[]} />
+              <SessionLogsTable sessions={sessions} />
             </div>
             <div>
               <FeedbackPanel messages={[]} />

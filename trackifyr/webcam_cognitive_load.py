@@ -202,9 +202,14 @@ def run_combined_stream_json(cap, v1_model, v2_model, net_v3, device, args) -> N
 
                 vec2 = roller.update(row)
                 if vec2 is None:
+                    proba2 = np.ones(3, dtype=np.float64) / 3.0
                     pred2 = 1
                 else:
-                    pred2 = int(v2_model.predict(vec2.reshape(1, -1))[0])
+                    proba2 = np.asarray(
+                        v2_model.predict_proba(vec2.reshape(1, -1))[0],
+                        dtype=np.float64,
+                    )
+                    pred2 = int(np.argmax(proba2))
                     pred2 = smooth_label(smooth_q2, pred2)
                 lv2 = LABEL_NAMES[pred2]
 
@@ -242,6 +247,12 @@ def run_combined_stream_json(cap, v1_model, v2_model, net_v3, device, args) -> N
                 now = time.monotonic()
                 if now >= next_emit:
                     final = ensemble_final_load(lv1, lv2, lv3)
+                    p1 = np.asarray(proba, dtype=np.float64)
+                    p3 = np.asarray(ema, dtype=np.float64)
+                    p_avg = (p1 + proba2 + p3) / 3.0
+                    s = float(np.sum(p_avg))
+                    if s > 1e-9:
+                        p_avg = p_avg / s
                     payload = {
                         "timestamp": time.time(),
                         "v1_prediction": lv1,
@@ -251,6 +262,12 @@ def run_combined_stream_json(cap, v1_model, v2_model, net_v3, device, args) -> N
                         "gaze_away": int(interval_gaze_away),
                         "face_detected": bool(last_face),
                         "final_model_load": final,
+                        # Low/Medium/High class probabilities (mean softmax v1+v2+v3) for dashboard engagement %
+                        "cognitive_proba": [
+                            float(p_avg[0]),
+                            float(p_avg[1]),
+                            float(p_avg[2]),
+                        ],
                     }
                     print(json.dumps(payload), flush=True)
                     interval_blinks = 0

@@ -1,5 +1,6 @@
 import { getSessionTokenFromRequest } from '@/lib/auth-session'
 import { getUserIdFromSessionToken, upsertTrackingLiveForUser } from '@/lib/trackingLiveDb'
+import { mergeIngestIntoFiveMinuteBucket } from '@/lib/trackingSessionsDb'
 import { setTrackingLive } from '@/lib/trackingStore'
 
 export async function POST(request) {
@@ -16,6 +17,11 @@ export async function POST(request) {
         return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 })
       }
       await upsertTrackingLiveForUser(userId, body)
+      try {
+        await mergeIngestIntoFiveMinuteBucket(userId, body)
+      } catch {
+        /* bucket aggregation is best-effort */
+      }
       return Response.json({ ok: true })
     }
 
