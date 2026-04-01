@@ -55,9 +55,24 @@ test('webcam on but JSON not yet: activity fallback, status waiting', () => {
     synthetic_webcam: true,
     webcam_ml_waiting: true,
   })
-  assert.strictEqual(o.engagement_score, 80)
+  assert.strictEqual(o.engagement_score, 82)
   assert.strictEqual(o.webcam_ml_status, 'waiting')
   assert.deepStrictEqual(o.engagement_proba_pct, [0, 0, 100])
+})
+
+test('waiting mode: engagement uses model blend, not raw activity %', () => {
+  const o = fuseTracking({
+    activity_percentage: 44,
+    final_model_load: 'Medium',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: true,
+    webcam_ml_waiting: true,
+  })
+  assert.strictEqual(o.activity_load, 44)
+  assert.strictEqual(o.engagement_score, 55)
+  assert.notStrictEqual(o.engagement_score, o.activity_load)
 })
 
 test('ensemble cognitive_proba => active', () => {
@@ -83,4 +98,19 @@ test('ensemble cognitive_proba => active', () => {
     cognitive_proba: [0.05, 0.15, 0.8],
   })
   assert.deepStrictEqual(hi.engagement_proba_pct, [5, 15, 80])
+})
+
+test('cognitive_proba path: engagement_score from softmax blend, not activity_load', () => {
+  const o = fuseTracking({
+    activity_percentage: 90,
+    final_model_load: 'High',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.34, 0.33, 0.33],
+  })
+  assert.strictEqual(o.activity_load, 90)
+  assert.strictEqual(o.engagement_score, 55)
+  assert.notStrictEqual(o.engagement_score, o.activity_load)
 })

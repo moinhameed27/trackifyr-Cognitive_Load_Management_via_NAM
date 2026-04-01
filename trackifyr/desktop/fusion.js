@@ -42,6 +42,14 @@ function probaToPctTriple(modelProba) {
   return [Math.round(a * 100), Math.round(b * 100), Math.round(c * 100)]
 }
 
+/** Turn label % bars [100,0,0] / [0,100,0] / [0,0,100] into a normalized triple for engagementScoreFromModelProba. */
+function probaTripleFromLabelPctBars(engagement) {
+  const [a, b, c] = labelToProbaPct(engagement)
+  const s = a + b + c
+  if (s <= 0) return [1 / 3, 1 / 3, 1 / 3]
+  return [a / s, b / s, c / s]
+}
+
 /**
  * Continuous 0–100 engagement from ensemble class probabilities + gaze / face (trained-model path).
  */
@@ -119,7 +127,8 @@ function fuseTracking(input) {
       webcam_ml_status = 'waiting'
       const eng = engagementFromActivityLoad(activity_load)
       engagement = eng
-      engagement_score = Math.round(Math.max(0, Math.min(100, activity_load)))
+      // Same 28/55/82 blend as the model path — do not mirror activity_load (that made engagement == activity %).
+      engagement_score = engagementScoreFromModelProba(probaTripleFromLabelPctBars(eng), true, 0)
       engagement_proba_pct = labelToProbaPct(eng)
     } else {
       webcam_ml_status = 'off'
