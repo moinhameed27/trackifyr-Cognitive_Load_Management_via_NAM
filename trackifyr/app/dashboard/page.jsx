@@ -37,9 +37,6 @@ export default function DashboardPage() {
   const [chartSeries, setChartSeries] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
   const [viewFilter, setViewFilter] = useState('combined')
-  const [trackingBusy, setTrackingBusy] = useState(false)
-  const [trackingNote, setTrackingNote] = useState('')
-  const [webcamForTracking, setWebcamForTracking] = useState(false)
 
   const fetchLive = useCallback(async () => {
     try {
@@ -90,54 +87,6 @@ export default function DashboardPage() {
       return [...prev, row].slice(-48)
     })
   }, [live])
-
-  const startRemoteTracking = useCallback(async () => {
-    setTrackingBusy(true)
-    setTrackingNote('')
-    try {
-      const res = await fetch('/api/tracking/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webcam: webcamForTracking }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setTrackingNote(
-          data.error === 'electron_bridge_unavailable'
-            ? 'Desktop bridge unavailable. Open the Trackifyr desktop app on this PC and use Start under Local tracking, or see Tracking setup.'
-            : 'Could not start tracking from the server.',
-        )
-      } else {
-        setTrackingNote('Start sent. If numbers stay empty, start tracking in the desktop app (it owns the Python processes).')
-      }
-    } catch {
-      setTrackingNote('Network error talking to /api/tracking/start.')
-    } finally {
-      setTrackingBusy(false)
-    }
-  }, [webcamForTracking])
-
-  const stopRemoteTracking = useCallback(async () => {
-    setTrackingBusy(true)
-    setTrackingNote('')
-    try {
-      const res = await fetch('/api/tracking/stop', { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setTrackingNote(
-          data.error === 'electron_bridge_unavailable'
-            ? 'Stop failed — desktop app may not be running.'
-            : 'Could not stop tracking.',
-        )
-      } else {
-        setTrackingNote('Stop sent to the desktop bridge.')
-      }
-    } catch {
-      setTrackingNote('Network error talking to /api/tracking/stop.')
-    } finally {
-      setTrackingBusy(false)
-    }
-  }, [])
 
   if (isAuthLoading || !isAuthenticated) {
     return null
@@ -209,47 +158,17 @@ export default function DashboardPage() {
         <Header title="Dashboard" subtitle={`Welcome back, ${user?.fullName?.split(' ')[0] || 'User'}! 👋`} />
 
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-950">
-            <p className="font-medium text-indigo-900">Live cognitive load</p>
-            <p className="mt-1 text-indigo-800/90">
-              Data is produced by the <strong>desktop app</strong> (Python activity + optional webcam ML) and shown here.{' '}
-              <Link href="/tracking-setup" className="underline font-semibold hover:text-indigo-950">
-                Setup guide
-              </Link>
-              {' · '}
-              <Link href="/download" className="underline font-semibold hover:text-indigo-950">
-                Download desktop
-              </Link>
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={trackingBusy}
-                onClick={() => void startRemoteTracking()}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {trackingBusy ? 'Working…' : 'Request start (bridge)'}
-              </button>
-              <button
-                type="button"
-                disabled={trackingBusy}
-                onClick={() => void stopRemoteTracking()}
-                className="px-3 py-1.5 rounded-lg bg-white border border-indigo-200 text-indigo-900 text-xs font-semibold hover:bg-indigo-100/50 disabled:opacity-50"
-              >
-                Request stop (bridge)
-              </button>
-              <label className="flex items-center gap-2 text-xs text-indigo-900 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={webcamForTracking}
-                  onChange={(e) => setWebcamForTracking(e.target.checked)}
-                  className="rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                Webcam ML in start request
-              </label>
-            </div>
-            {trackingNote ? <p className="mt-2 text-xs text-indigo-900/90">{trackingNote}</p> : null}
-          </div>
+          <p className="mb-4 text-sm text-gray-600">
+            Live metrics sync from the{' '}
+            <Link href="/download" className="font-semibold text-indigo-700 underline hover:text-indigo-900">
+              desktop app
+            </Link>{' '}
+            (same account).{' '}
+            <Link href="/tracking-setup" className="text-indigo-600 underline hover:text-indigo-900">
+              Setup
+            </Link>
+            .
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             {statsCards.map((stat, index) => (

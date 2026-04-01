@@ -25,9 +25,7 @@
   const btnCamToggle = document.getElementById('btn-cam-toggle')
   const cameraStatus = document.getElementById('camera-status')
 
-  const btnTrackingToggle = document.getElementById('btn-tracking-toggle')
   const trackingStatus = document.getElementById('tracking-status')
-  let trackingRunning = false
 
   try {
     localStorage.removeItem(LS_API_LEGACY)
@@ -137,7 +135,7 @@
       running = true
       timerPulse.classList.add('active')
       btnTimerToggle.textContent = 'Pause'
-      timerHint.textContent = 'Running — pause anytime.'
+      timerHint.textContent = 'Running — tracking and dashboard sync are active. Pause to stop.'
     } else {
       if (runStart != null) accumulatedMs += performance.now() - runStart
       runStart = null
@@ -147,7 +145,9 @@
       timerPulse.classList.remove('active')
       btnTimerToggle.textContent = 'Start'
       timerHint.textContent =
-        accumulatedMs > 0 ? 'Paused — press Start to continue.' : 'Start or pause the session timer.'
+        accumulatedMs > 0
+          ? 'Paused — press Start to resume timer and tracking.'
+          : 'Start begins the session timer, activity tracking, and live sync to the web dashboard. Pause stops tracking.'
     }
     timerDisplay.textContent = formatTime(currentElapsedMs())
     if (running) rafId = requestAnimationFrame(tick)
@@ -212,6 +212,9 @@
         return
       }
       await persistSession(data.sessionToken, data.user)
+      if (window.trackifyr.setSessionToken) {
+        await window.trackifyr.setSessionToken(data.sessionToken)
+      }
       applyUserToSessionUI(data.user)
       showView('session')
       await resetSessionPanelState()
@@ -231,19 +234,40 @@
     timerDisplay.textContent = '00:00:00'
     timerPulse.classList.remove('active')
     btnTimerToggle.textContent = 'Start'
-    timerHint.textContent = 'Start or pause the session timer.'
+    timerHint.textContent =
+      'Start begins the session timer, activity tracking, and live sync to the web dashboard. Pause stops tracking.'
     try {
-      if (trackingRunning && window.trackifyr.trackingStop) await window.trackifyr.trackingStop()
+      if (window.trackifyr.trackingStop) await window.trackifyr.trackingStop()
     } catch {
       /* ignore */
     }
-    setTrackingUiRunning(false)
     if (trackingStatus) trackingStatus.textContent = ''
     void setCamera(false)
   }
 
-  btnTimerToggle.addEventListener('click', () => {
-    setTimerRunning(!running)
+  btnTimerToggle.addEventListener('click', async () => {
+    const next = !running
+    if (!next) {
+      setTimerRunning(false)
+      try {
+        if (window.trackifyr.trackingStop) await window.trackifyr.trackingStop()
+      } catch {
+        /* ignore */
+      }
+      if (trackingStatus) trackingStatus.textContent = ''
+      setTimeout(fitWindow, 80)
+      return
+    }
+    setTimerRunning(true)
+    if (trackingStatus) trackingStatus.textContent = 'Waiting for first sample (up to ~10s)…'
+    const webcamMl = btnCamToggle.getAttribute('aria-checked') === 'true'
+    try {
+      if (window.trackifyr.trackingStart) await window.trackifyr.trackingStart({ webcam: webcamMl })
+    } catch {
+      setTimerRunning(false)
+      if (trackingStatus) trackingStatus.textContent = 'Could not start tracking. Check Python / permissions and try again.'
+    }
+    setTimeout(fitWindow, 80)
   })
 
   btnCamToggle.addEventListener('click', () => {
@@ -251,22 +275,13 @@
     setCamera(next)
   })
 
-  function setTrackingUiRunning(running) {
-    trackingRunning = Boolean(running)
-    if (!btnTrackingToggle) return
-    btnTrackingToggle.textContent = trackingRunning ? 'Stop' : 'Start'
-    btnTrackingToggle.classList.toggle('btn-primary', !trackingRunning)
-    btnTrackingToggle.classList.toggle('btn-tracking-stop', trackingRunning)
-    btnTrackingToggle.setAttribute('aria-pressed', trackingRunning ? 'true' : 'false')
-  }
-
   let offTracking = null
   if (window.trackifyr.onTracking) {
     offTracking = window.trackifyr.onTracking((payload) => {
       const fused = payload && payload.fused
       if (!trackingStatus) return
       if (!fused) {
-        if (trackingRunning) trackingStatus.textContent = 'Waiting for data…'
+        if (running) trackingStatus.textContent = 'Waiting for data…'
         return
       }
       const parts = [
@@ -280,51 +295,20 @@
     })
   }
 
-  async function toggleTracking() {
-    if (!window.trackifyr.trackingStart || !window.trackifyr.trackingStop) return
-    if (trackingRunning) {
-      try {
-        await window.trackifyr.trackingStop()
-      } catch {
-        /* ignore */
-      }
-      setTrackingUiRunning(false)
-      if (trackingStatus) trackingStatus.textContent = ''
-      setTimeout(fitWindow, 80)
-      return
-    }
-    try {
-      await window.trackifyr.trackingStart({ webcam: false })
-      setTrackingUiRunning(true)
-    } catch {
-      /* ignore */
-    }
-    setTimeout(fitWindow, 80)
-  }
-
-  if (btnTrackingToggle) {
-    btnTrackingToggle.addEventListener('click', () => void toggleTracking())
-  }
-
   btnSignout.addEventListener('click', async () => {
     const token = getStoredToken()
     const apiBase = getApiBase()
-    if (rafId) cancelAnimationFrame(rafId)
     if (typeof offTracking === 'function') offTracking()
-    try {
-      if (window.trackifyr.trackingStop) await window.trackifyr.trackingStop()
-    } catch {
-      /* ignore */
-    }
-    setTrackingUiRunning(false)
-    if (trackingStatus) trackingStatus.textContent = ''
-    await setCamera(false)
+    await resetSessionPanelState()
     if (token) {
       try {
         await window.trackifyr.signout({ apiBase, sessionToken: token })
       } catch {
         /* ignore */
       }
+    }
+    if (window.trackifyr.setSessionToken) {
+      await window.trackifyr.setSessionToken('')
     }
     clearSession()
     showView('login')
@@ -357,6 +341,9 @@
       if (ok && data?.success && data?.user) {
         applyUserToSessionUI(data.user)
         localStorage.setItem(LS_USER, JSON.stringify(data.user))
+        if (window.trackifyr.setSessionToken) {
+          await window.trackifyr.setSessionToken(token)
+        }
         showView('session')
         await resetSessionPanelState()
       } else {

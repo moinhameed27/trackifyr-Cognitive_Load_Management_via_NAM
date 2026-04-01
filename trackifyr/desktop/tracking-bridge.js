@@ -1,10 +1,18 @@
 'use strict'
 
+const fs = require('fs')
 const http = require('http')
 const path = require('path')
 const { spawn } = require('child_process')
 const readline = require('readline')
 const { fuseTracking } = require('./fusion.js')
+
+/** @type {() => string} */
+let getIngestToken = () => ''
+
+function setIngestTokenGetter(fn) {
+  if (typeof fn === 'function') getIngestToken = fn
+}
 
 const DEFAULT_BRIDGE_PORT = Number(process.env.TRACKIFYR_BRIDGE_PORT || 47833)
 const ACTIVITY_INTERVAL_SEC = 10
@@ -24,6 +32,16 @@ let httpServer = null
 let getMainWindow = () => null
 
 function repoRoot() {
+  const envRoot = (process.env.TRACKIFYR_TRACKING_ROOT || '').trim()
+  if (envRoot) return envRoot
+  if (process.resourcesPath) {
+    const bundled = path.join(process.resourcesPath, 'python-tracking')
+    try {
+      if (fs.existsSync(path.join(bundled, 'activity_tracker.py'))) return bundled
+    } catch {
+      /* ignore */
+    }
+  }
   return path.join(__dirname, '..')
 }
 
@@ -46,12 +64,18 @@ function broadcastUpdate() {
 async function pushToNextIngest() {
   if (!lastFused) return
   const base = (process.env.TRACKIFYR_API_BASE || 'http://localhost:3000').replace(/\/$/, '')
+  const headers = { 'Content-Type': 'application/json' }
+  const t = (getIngestToken && getIngestToken()) || ''
+  if (t) headers.Authorization = `Bearer ${t}`
   try {
-    await fetch(`${base}/api/tracking/ingest`, {
+    const res = await fetch(`${base}/api/tracking/ingest`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(lastFused),
     })
+    if (!res.ok && process.env.TRACKIFYR_DEBUG_INGEST) {
+      console.warn('[trackifyr] ingest failed', res.status, await res.text().catch(() => ''))
+    }
   } catch {
     /* offline dev */
   }
@@ -168,6 +192,14 @@ function startTracking(opts = {}) {
   activityProc = spawn(py, ['activity_tracker.py', '--interval', String(ACTIVITY_INTERVAL_SEC)], {
     cwd: root,
     env: process.env,
+  })
+  activityProc.on('error', (err) => {
+    console.error('[trackifyr] activity_tracker spawn error', root, err && err.message)
+  })
+  activityProc.on('exit', (code, signal) => {
+    if (code && code !== 0) {
+      console.error('[trackifyr] activity_tracker exited', code, signal, 'cwd=', root)
+    }
   })
   wireStdoutJson(activityProc, (j) => {
     lastActivity = j
@@ -297,6 +329,7 @@ module.exports = {
   startHttpServer,
   registerIpc,
   setMainWindowGetter,
+  setIngestTokenGetter,
   startTracking,
   stopChildren,
 }

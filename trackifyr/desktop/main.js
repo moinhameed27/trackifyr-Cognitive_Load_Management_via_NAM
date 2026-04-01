@@ -4,12 +4,6 @@
 const { app, BrowserWindow, ipcMain, session } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const {
-  startHttpServer,
-  registerIpc,
-  setMainWindowGetter,
-  stopChildren,
-} = require('./tracking-bridge.js')
 
 function loadReleaseConfigApiBase() {
   try {
@@ -31,6 +25,17 @@ const API_BASE_DEFAULT = FIXED_API_BASE || 'http://localhost:3000'
 function normalizeBase(url) {
   return String(url || 'http://localhost:3000').replace(/\/$/, '')
 }
+
+if (!String(process.env.TRACKIFYR_API_BASE || '').trim()) {
+  process.env.TRACKIFYR_API_BASE = normalizeBase(API_BASE_DEFAULT)
+}
+
+let desktopSessionToken = ''
+
+const trackingBridge = require('./tracking-bridge.js')
+trackingBridge.setIngestTokenGetter(() => desktopSessionToken)
+
+const { startHttpServer, registerIpc, setMainWindowGetter, stopChildren } = trackingBridge
 
 async function apiFetch(base, pathname, options = {}) {
   try {
@@ -54,11 +59,11 @@ let mainWindow = null
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 360,
-    height: 420,
-    minWidth: 300,
-    minHeight: 320,
-    maximizable: false,
+    width: 1040,
+    height: 720,
+    minWidth: 400,
+    minHeight: 420,
+    maximizable: true,
     title: 'Trackifyr',
     backgroundColor: '#f8fafc',
     autoHideMenuBar: true,
@@ -95,9 +100,14 @@ app.whenReady().then(() => {
   ipcMain.handle('trackifyr:setContentSize', (event, { width, height }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win || typeof width !== 'number' || typeof height !== 'number') return
-    const w = Math.min(560, Math.max(300, Math.round(width)))
-    const h = Math.min(720, Math.max(320, Math.round(height)))
+    const w = Math.min(1920, Math.max(400, Math.round(width)))
+    const h = Math.min(1200, Math.max(420, Math.round(height)))
     win.setContentSize(w, h)
+  })
+
+  ipcMain.handle('trackifyr:setSessionToken', (_e, { token }) => {
+    desktopSessionToken = String(token || '').trim()
+    return { ok: true }
   })
 
   ipcMain.handle('trackifyr:signin', async (_e, { apiBase, email, password }) => {
