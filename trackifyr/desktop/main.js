@@ -32,6 +32,36 @@ if (!String(process.env.TRACKIFYR_API_BASE || '').trim()) {
 
 let desktopSessionToken = ''
 
+// #region agent log
+const AGENT_LOG_MAIN = 'http://127.0.0.1:7902/ingest/12dc9b3d-fb1e-4500-92ef-90b256789304'
+const DEBUG_LOG_FILE_MAIN = path.join(__dirname, '..', '.cursor', 'debug-6cdaaf.log')
+function appendDebugNdjsonMain(payload) {
+  try {
+    const dir = path.dirname(DEBUG_LOG_FILE_MAIN)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.appendFileSync(DEBUG_LOG_FILE_MAIN, `${JSON.stringify(payload)}\n`, 'utf8')
+  } catch {
+    /* ignore */
+  }
+}
+function dbgMain(hypothesisId, message, data) {
+  const payload = {
+    sessionId: '6cdaaf',
+    hypothesisId,
+    location: 'main.js',
+    message,
+    data: data || {},
+    timestamp: Date.now(),
+  }
+  appendDebugNdjsonMain(payload)
+  fetch(AGENT_LOG_MAIN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6cdaaf' },
+    body: JSON.stringify(payload),
+  }).catch(() => {})
+}
+// #endregion
+
 const trackingBridge = require('./tracking-bridge.js')
 trackingBridge.setIngestTokenGetter(() => desktopSessionToken)
 
@@ -138,11 +168,27 @@ function installAppMenu() {
 
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    // #region agent log
+    dbgMain('H6', 'permission_request', { permission })
+    // #endregion
     if (permission === 'media' || permission === 'camera') {
       callback(true)
       return
     }
     callback(false)
+  })
+
+  ipcMain.handle('trackifyr:debugLog', (_e, payload) => {
+    try {
+      const p =
+        payload && typeof payload === 'object'
+          ? { ...payload, timestamp: payload.timestamp || Date.now() }
+          : { raw: String(payload), timestamp: Date.now() }
+      appendDebugNdjsonMain(p)
+    } catch {
+      /* ignore */
+    }
+    return { ok: true }
   })
 
   ipcMain.handle('trackifyr:config', () => ({

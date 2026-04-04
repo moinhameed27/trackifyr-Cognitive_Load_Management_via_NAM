@@ -1,4 +1,46 @@
 ;(async function () {
+  // #region agent log
+  const AGENT_LOG = 'http://127.0.0.1:7902/ingest/12dc9b3d-fb1e-4500-92ef-90b256789304'
+  function dbgAgent(hypothesisId, location, message, data) {
+    const payload = {
+      sessionId: '6cdaaf',
+      hypothesisId,
+      location,
+      message,
+      data: data || {},
+      timestamp: Date.now(),
+    }
+    if (window.trackifyr && typeof window.trackifyr.debugLog === 'function') {
+      window.trackifyr.debugLog(payload).catch(() => {})
+    }
+    fetch(AGENT_LOG, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6cdaaf' },
+      body: JSON.stringify(payload),
+    }).catch(() => {})
+  }
+  // #endregion
+
+  async function preflightCameraThenRelease() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: false,
+      })
+      stream.getTracks().forEach((t) => t.stop())
+      await new Promise((r) => {
+        requestAnimationFrame(() => requestAnimationFrame(r))
+      })
+      dbgAgent('H6', 'renderer:preflightCamera', 'tracks_stopped', {})
+    } catch (e) {
+      dbgAgent('H6', 'renderer:preflightCamera', 'getUserMedia_error', {
+        name: e && e.name,
+        msg: e && e.message ? String(e.message) : String(e),
+      })
+    }
+  }
+
   const LS_TOKEN = 'trackifyr_desktop_session_token'
   const LS_USER = 'trackifyr_desktop_user'
   const LS_API_LEGACY = 'trackifyr_desktop_api_base'
@@ -256,8 +298,17 @@
     setTimerRunning(true)
     if (trackingStatus) trackingStatus.textContent = ''
     try {
+      await preflightCameraThenRelease()
       if (window.trackifyr.trackingStart) await window.trackifyr.trackingStart({ webcam: true })
-    } catch {
+      // #region agent log
+      dbgAgent('H2', 'renderer:btnTimerToggle', 'trackingStart_resolved', {})
+      // #endregion
+    } catch (err) {
+      // #region agent log
+      dbgAgent('H2', 'renderer:btnTimerToggle', 'trackingStart_rejected', {
+        msg: err && err.message ? String(err.message) : 'unknown',
+      })
+      // #endregion
       setTimerRunning(false)
       await setCamera(false)
       if (trackingStatus) trackingStatus.textContent = 'Error.'

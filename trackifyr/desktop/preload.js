@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('trackifyr', {
+  debugLog: (payload) => ipcRenderer.invoke('trackifyr:debugLog', payload),
   getConfig: () => ipcRenderer.invoke('trackifyr:config'),
   setSessionToken: (token) =>
     ipcRenderer.invoke('trackifyr:setSessionToken', { token: token == null ? '' : String(token) }),

@@ -7,6 +7,36 @@ const { spawn } = require('child_process')
 const readline = require('readline')
 const { fuseTracking } = require('./fusion.js')
 
+// #region agent log
+const AGENT_LOG = 'http://127.0.0.1:7902/ingest/12dc9b3d-fb1e-4500-92ef-90b256789304'
+const DEBUG_LOG_FILE = path.join(__dirname, '..', '.cursor', 'debug-6cdaaf.log')
+function appendDebugNdjson(payload) {
+  try {
+    const dir = path.dirname(DEBUG_LOG_FILE)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.appendFileSync(DEBUG_LOG_FILE, `${JSON.stringify(payload)}\n`, 'utf8')
+  } catch {
+    /* ignore */
+  }
+}
+function dbgAgent(hypothesisId, location, message, data) {
+  const payload = {
+    sessionId: '6cdaaf',
+    hypothesisId,
+    location,
+    message,
+    data: data || {},
+    timestamp: Date.now(),
+  }
+  appendDebugNdjson(payload)
+  fetch(AGENT_LOG, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6cdaaf' },
+    body: JSON.stringify(payload),
+  }).catch(() => {})
+}
+// #endregion
+
 /** @type {() => string} */
 let getIngestToken = () => ''
 
@@ -268,12 +298,25 @@ function spawnWebcamPipeline() {
   if (webcamProc) return
   const root = repoRoot()
   const modelPaths = resolveDaiseeModelPaths(root)
-  if (!hasWebcamModels(root)) {
+  const hasModels = hasWebcamModels(root)
+  // #region agent log
+  dbgAgent('H2', 'tracking-bridge:spawnWebcamPipeline', 'pre_check', {
+    root,
+    hasModels,
+    v1: modelPaths.v1,
+    v2: modelPaths.v2,
+    v3: modelPaths.v3,
+  })
+  // #endregion
+  if (!hasModels) {
     const miss = []
     if (!fs.existsSync(modelPaths.v1)) miss.push(`v1=${modelPaths.v1}`)
     if (!fs.existsSync(modelPaths.v2)) miss.push(`v2=${modelPaths.v2}`)
     if (!fs.existsSync(modelPaths.v3)) miss.push(`v3=${modelPaths.v3}`)
     console.error('[trackifyr] webcam ML missing files:', miss.join(' | '), 'cwd=', root)
+    // #region agent log
+    dbgAgent('H2', 'tracking-bridge:spawnWebcamPipeline', 'no_models_skip', { miss })
+    // #endregion
     webcamPipelineError = 'no_models'
     tryFuse()
     broadcastUpdate()
@@ -303,17 +346,33 @@ function spawnWebcamPipeline() {
     ],
     { cwd: root, env: pythonEnv(root), windowsHide: true },
   )
+  // #region agent log
+  dbgAgent('H2', 'tracking-bridge:spawnWebcamPipeline', 'spawned', { pid: webcamProc.pid, py, camIdx })
+  let webcamStderrOnce = false
+  // #endregion
   webcamProc.on('error', (err) => {
     console.error('[trackifyr] webcam_cognitive_load spawn error', root, err && err.message)
+    // #region agent log
+    dbgAgent('H3', 'tracking-bridge:webcamProc', 'spawn_error', { msg: err && err.message })
+    // #endregion
   })
   webcamProc.stderr?.on('data', (d) => {
     const s = String(d).trim()
     if (s) console.error('[trackifyr webcam stderr]', s.slice(0, 800))
+    // #region agent log
+    if (s && !webcamStderrOnce) {
+      webcamStderrOnce = true
+      dbgAgent('H3', 'tracking-bridge:webcam_stderr', 'first_chunk', { snippet: s.slice(0, 400) })
+    }
+    // #endregion
   })
   webcamProc.on('exit', (code, signal) => {
     if (code && code !== 0) {
       console.error('[trackifyr] webcam_cognitive_load exited', code, signal, 'cwd=', root)
     }
+    // #region agent log
+    dbgAgent('H3', 'tracking-bridge:webcamProc', 'exit', { code, signal })
+    // #endregion
     webcamProc = null
     lastWebcam = null
     if (code != null && code !== 0 && webcamEnabled) {
@@ -322,7 +381,17 @@ function spawnWebcamPipeline() {
     tryFuse()
     broadcastUpdate()
   })
+  let webcamJsonLines = 0
   wireStdoutJson(webcamProc, (j) => {
+    webcamJsonLines += 1
+    // #region agent log
+    if (webcamJsonLines === 1) {
+      dbgAgent('H4', 'tracking-bridge:webcam_stdout', 'first_json', {
+        keys: j && typeof j === 'object' ? Object.keys(j) : [],
+        hasFinalLoad: j && typeof j.final_model_load === 'string',
+      })
+    }
+    // #endregion
     lastWebcam = j
     webcamPipelineError = null
     tryFuse()
@@ -381,7 +450,16 @@ function startTracking(opts = {}) {
       console.error('[trackifyr] activity_tracker exited', code, signal, 'cwd=', root)
     }
   })
+  let activityLineN = 0
   wireStdoutJson(activityProc, (j) => {
+    activityLineN += 1
+    // #region agent log
+    if (activityLineN === 1) {
+      dbgAgent('H5', 'tracking-bridge:activity_stdout', 'first_json', {
+        activity_percentage: j && j.activity_percentage,
+      })
+    }
+    // #endregion
     lastActivity = j
     tryFuse()
   })
@@ -484,6 +562,11 @@ function startHttpServer() {
 
 function registerIpc(ipcMain) {
   ipcMain.handle('trackifyr:tracking:start', (_e, payload) => {
+    // #region agent log
+    dbgAgent('H2', 'ipc:trackifyr:tracking:start', 'invoke', {
+      webcam: Boolean(payload && payload.webcam),
+    })
+    // #endregion
     startTracking({ webcam: Boolean(payload && payload.webcam) })
     return { ok: true }
   })
