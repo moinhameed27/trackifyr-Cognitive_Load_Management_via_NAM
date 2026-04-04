@@ -1,5 +1,5 @@
 /**
- * @fileoverview Cognitive load charts — activity % and engagement tier (today UTC + weekly rollups).
+ * @fileoverview Cognitive load charts — activity % and engagement tier (today PKT + weekly rollups).
  */
 
 'use client'
@@ -68,7 +68,7 @@ export default function CognitiveLoadCharts({
           <div>
             <h2 className="text-xl font-bold text-gray-900">Cognitive load (today)</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Activity load (%) and engagement tier (Minor → Major) from stored 5-minute buckets for the current UTC day
+              Activity load (%) and engagement tier (Minor → Major) from stored 5-minute buckets for the current PKT day
             </p>
           </div>
         </div>
@@ -77,7 +77,7 @@ export default function CognitiveLoadCharts({
             className="flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/80 text-gray-500 text-sm px-4 text-center"
             style={{ minHeight: CHART_HEIGHT }}
           >
-            No 5-minute data for today yet — run the desktop app to record activity; past buckets stay visible after you close it
+            No 5-minute data for today (PKT) yet — run the desktop app to record activity; past buckets stay visible after you close it
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -145,15 +145,15 @@ export default function CognitiveLoadCharts({
       {!hasDaily ? (
         <EmptyChart
           title="Weekly aggregates"
-          subtitle="Ingest tracking for a few minutes — 5-minute buckets roll up into the last 7 days here"
+          subtitle="Ingest tracking for a few minutes — 5-minute buckets roll up into the last 7 PKT days here"
         />
       ) : (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 p-6">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-900">Weekly aggregates</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Rolling 7 days (UTC days): average engagement score and number of 5-minute windows with data — updates
-              while you ingest
+              Rolling 7 days (PKT calendar days): average engagement score and number of 5-minute windows with data —
+              updates while you ingest
             </p>
           </div>
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>

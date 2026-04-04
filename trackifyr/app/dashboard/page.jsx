@@ -55,7 +55,7 @@ export default function DashboardPage() {
     }
   }, [])
 
-  /** Today's 5-min buckets for the cognitive load chart (UTC day), even when the desktop app is off. */
+  /** Today's 5-min buckets for the cognitive load chart (PKT day), even when the desktop app is off. */
   const fetchDayChart = useCallback(async () => {
     try {
       const res = await fetch('/api/tracking/chart-day', {
@@ -214,7 +214,7 @@ export default function DashboardPage() {
         typeof live?.daily_avg_activity_pct === 'number' && !Number.isNaN(live.daily_avg_activity_pct)
           ? `${Math.round(live.daily_avg_activity_pct)}%`
           : '—',
-      change: 'Resets 00:00 UTC',
+      change: 'Resets 00:00 PKT',
       color: 'purple',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

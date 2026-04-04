@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react'
 import UserProfileDropdown from './UserProfileDropdown'
+import { formatPktTimeShort } from '@/lib/pktTime'
 
 const TIME_UPDATE_INTERVAL = 1000
 
@@ -44,9 +45,9 @@ export default function Header({ title, subtitle }) {
           </div>
           <div className="flex items-center space-x-3">
             <div className="hidden sm:block text-right">
-              <p className="text-xs text-gray-500 leading-tight">Current Time</p>
+              <p className="text-xs text-gray-500 leading-tight">Pakistan time (PKT)</p>
               <p className="text-base font-semibold text-gray-900 leading-tight">
-                {currentTime.toLocaleTimeString()}
+                {formatPktTimeShort(currentTime)}
               </p>
             </div>
             <UserProfileDropdown />

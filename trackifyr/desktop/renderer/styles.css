@@ -468,6 +468,15 @@ body {
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+.pkt-wall-clock {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--gray-600);
+  text-align: center;
+}
+
 @keyframes pulse {
   0%,
   100% {

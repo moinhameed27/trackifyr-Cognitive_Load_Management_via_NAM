@@ -4,6 +4,8 @@
 
 'use client'
 
+import { formatPktTimeShort } from '@/lib/pktTime'
+
 const COGNITIVE_LOAD_LEVELS = {
   Low: {
     bg: 'bg-green-50',
@@ -164,7 +166,10 @@ export default function CognitiveLoadCard({
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span>Last updated: {updatedAt ? new Date(updatedAt).toLocaleTimeString() : new Date().toLocaleTimeString()}</span>
+          <span>
+            Last updated (PKT):{' '}
+            {updatedAt ? formatPktTimeShort(new Date(updatedAt)) : formatPktTimeShort(new Date())}
+          </span>
         </div>
         <div className="flex items-center space-x-1 text-xs text-green-600 font-medium">
           <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>

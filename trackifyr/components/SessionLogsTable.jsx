@@ -56,7 +56,7 @@ export default function SessionLogsTable({
           <div>
             <h2 className="text-xl font-bold text-gray-900">Session logs</h2>
             <p className="text-sm text-gray-500 mt-1">
-              One row per 5-minute window (UTC-aligned). Values are averages of all samples ingested in that window only.
+              One row per 5-minute window (PKT-aligned). Values are averages of all samples ingested in that window only.
             </p>
           </div>
           <div className="flex items-center space-x-2 text-sm text-gray-600">

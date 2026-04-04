@@ -71,6 +71,24 @@
     return `${pad(h)}:${pad(m)}:${pad(sec)}`
   }
 
+  /** Wall clock in Pakistan time (fixed +05:00), independent of OS timezone. */
+  function formatPktWallClock() {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Karachi',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date())
+  }
+
+  const pktWallClockEl = document.getElementById('pkt-wall-clock')
+  function tickPktWallClock() {
+    if (pktWallClockEl) pktWallClockEl.textContent = `PKT ${formatPktWallClock()}`
+  }
+  tickPktWallClock()
+  setInterval(tickPktWallClock, 1000)
+
   function showView(name) {
     const isLogin = name === 'login'
     viewLogin.hidden = !isLogin

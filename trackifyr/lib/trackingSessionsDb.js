@@ -1,6 +1,18 @@
 import { query } from '@/lib/db'
 import { fusionEngagementToTier, fusionEngagementToTierIndex } from '@/lib/engagementTier'
+import {
+  fiveMinuteBucketStartUtcMs,
+  formatPktChartAxisTime,
+  formatPktIsoDate,
+  formatPktSessionWindow,
+  formatPktWeekdayLabel,
+  pktEndOfCalendarDayExclusive,
+  pktRollingWindowBounds,
+  pktStartOfCalendarDay,
+} from '@/lib/pktTime'
 import { SESSION_LOG_PAGE_SIZE, WEEKLY_ROLLING_DAYS } from '@/lib/trackingConstants'
+
+export { fiveMinuteBucketStartUtcMs } from '@/lib/pktTime'
 
 export { SESSION_LOG_PAGE_SIZE, WEEKLY_ROLLING_DAYS } from '@/lib/trackingConstants'
 
@@ -30,15 +42,6 @@ function engagementLabelToScore(label) {
   if (s === 'High') return 85
   if (s === 'Low') return 30
   return 55
-}
-
-/**
- * Wall-clock 5-minute bucket start (UTC ms), aligned to [0,5,10,…] minute boundaries.
- * All samples in one ingest fall into exactly one such bucket.
- */
-export function fiveMinuteBucketStartUtcMs(nowMs = Date.now()) {
-  const ms = 5 * 60 * 1000
-  return Math.floor(nowMs / ms) * ms
 }
 
 /**
@@ -111,8 +114,8 @@ export async function countFiveMinuteBucketsForUser(userId) {
 }
 
 /**
- * Mean activity_load (0–100) across every ingest sample for the current UTC calendar day.
- * Uses the same sums as 5-minute buckets: SUM(sum_activity) / SUM(sample_count). Resets at 00:00 UTC.
+ * Mean activity_load (0–100) across every ingest sample for the current PKT calendar day.
+ * Uses the same sums as 5-minute buckets: SUM(sum_activity) / SUM(sample_count). Resets at 00:00 PKT.
  * @param {number} userId
  * @returns {Promise<number | null>}
  */
@@ -120,8 +123,8 @@ export async function getTodayAverageActivityPercent(userId) {
   if (!userId) return null
   await ensureTrackingBucketsTable()
   const now = new Date()
-  const startUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
-  const endUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
+  const startUtc = pktStartOfCalendarDay(now)
+  const endUtc = pktEndOfCalendarDayExclusive(now)
   const r = await query(
     `
     SELECT
@@ -132,7 +135,7 @@ export async function getTodayAverageActivityPercent(userId) {
       AND bucket_start >= $2::timestamptz
       AND bucket_start < $3::timestamptz
   `,
-    [userId, new Date(startUtc).toISOString(), new Date(endUtc).toISOString()],
+    [userId, startUtc.toISOString(), endUtc.toISOString()],
   )
   const sc = Number(r.rows[0]?.sc) || 0
   const sa = Number(r.rows[0]?.sa) || 0
@@ -141,7 +144,7 @@ export async function getTodayAverageActivityPercent(userId) {
 }
 
 /**
- * All 5-minute buckets for the current UTC day, ascending — for the session chart (activity + engagement tier).
+ * All 5-minute buckets for the current PKT day, ascending — for the cognitive load chart.
  * @param {number} userId
  * @returns {Promise<Array<{ time: string, load: number, engagementTier: number }>>}
  */
@@ -149,8 +152,8 @@ export async function listTodayBucketsForChart(userId) {
   if (!userId) return []
   await ensureTrackingBucketsTable()
   const now = new Date()
-  const startUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
-  const endUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
+  const startUtc = pktStartOfCalendarDay(now)
+  const endUtc = pktEndOfCalendarDayExclusive(now)
   const r = await query(
     `
     SELECT
@@ -164,7 +167,7 @@ export async function listTodayBucketsForChart(userId) {
       AND bucket_start < $3::timestamptz
     ORDER BY bucket_start ASC
   `,
-    [userId, new Date(startUtc).toISOString(), new Date(endUtc).toISOString()],
+    [userId, startUtc.toISOString(), endUtc.toISOString()],
   )
 
   return r.rows.map((row) => {
@@ -175,7 +178,7 @@ export async function listTodayBucketsForChart(userId) {
     const tierIdx = fusionEngagementToTierIndex(engLabel) ?? 2
     const start = new Date(row.bucket_start)
     return {
-      time: start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      time: formatPktChartAxisTime(start),
       load: Math.round(Math.max(0, Math.min(100, avgAct))),
       engagementTier: tierIdx,
     }
@@ -220,7 +223,7 @@ export async function listFiveMinuteSessionsForUser(userId, limit = SESSION_LOG_
     return {
       id: String(row.bucket_start),
       bucketStart: start.toISOString(),
-      time: `${start.toLocaleString()} – ${end.toLocaleString()}`,
+      time: formatPktSessionWindow(start, end),
       cognitiveLoad: dominantCognitive(row),
       engagement: fusionEngagementToTier(engLabel) || engLabel,
       duration: '5 min',
@@ -230,7 +233,7 @@ export async function listFiveMinuteSessionsForUser(userId, limit = SESSION_LOG_
 }
 
 /**
- * Rolling last N days (UTC calendar days): avg engagement score and count of 5-minute buckets per day.
+ * Rolling last N days (PKT calendar days): avg engagement score and count of 5-minute buckets per day.
  * @param {number} userId
  * @param {number} [days]
  * @returns {Promise<Array<{ day: string, engagement: number, sessions: number, avgActivity: number }>>}
@@ -240,13 +243,12 @@ export async function listRollingDailyAggregatesForUser(userId, days = WEEKLY_RO
   const nDays = Math.min(Math.max(1, Number(days) || WEEKLY_ROLLING_DAYS), 31)
 
   const now = new Date()
-  const endUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
-  const startUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (nDays - 1), 0, 0, 0, 0)
+  const { start: startUtc, end: endUtc } = pktRollingWindowBounds(now, nDays)
 
   const r = await query(
     `
     SELECT
-      (bucket_start AT TIME ZONE 'UTC')::date AS day_date,
+      (bucket_start AT TIME ZONE 'Asia/Karachi')::date AS day_date,
       SUM(sample_count)::bigint AS total_samples,
       SUM(sum_activity)::double precision AS sum_act,
       SUM(sum_engagement_score)::double precision AS sum_eng,
@@ -258,7 +260,7 @@ export async function listRollingDailyAggregatesForUser(userId, days = WEEKLY_RO
     GROUP BY 1
     ORDER BY 1 ASC
   `,
-    [userId, new Date(startUtc).toISOString(), new Date(endUtc).toISOString()],
+    [userId, startUtc.toISOString(), endUtc.toISOString()],
   )
 
   const byDay = new Map()
@@ -282,13 +284,14 @@ export async function listRollingDailyAggregatesForUser(userId, days = WEEKLY_RO
     })
   }
 
+  const todayStart = pktStartOfCalendarDay(now)
   const out = []
   for (let i = nDays - 1; i >= 0; i--) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i, 12, 0, 0, 0))
-    const key = d.toISOString().slice(0, 10)
+    const dayInstant = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000)
+    const key = formatPktIsoDate(dayInstant)
     const agg = byDay.get(key)
     out.push({
-      day: d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+      day: formatPktWeekdayLabel(dayInstant),
       engagement: agg?.avgEngagement ?? 0,
       sessions: agg?.sessions ?? 0,
       avgActivity: agg?.avgActivity ?? 0,
