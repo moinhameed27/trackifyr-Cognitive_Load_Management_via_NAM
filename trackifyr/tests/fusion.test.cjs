@@ -45,6 +45,20 @@ test('low activity + low model => Low final cognitive load', () => {
   assert.strictEqual(o.final_cognitive_load, 'Low')
 })
 
+test('low activity + ensemble Medium + Low engagement (proba) => final cognitive Low', () => {
+  const o = fuseTracking({
+    activity_percentage: 0,
+    final_model_load: 'Medium',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.85, 0.1, 0.05],
+  })
+  assert.strictEqual(o.engagement, 'Low')
+  assert.strictEqual(o.final_cognitive_load, 'Low')
+})
+
 test('no face => engagement low', () => {
   const o = fuseTracking({
     activity_percentage: 50,

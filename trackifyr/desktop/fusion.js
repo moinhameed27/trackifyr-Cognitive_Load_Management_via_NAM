@@ -154,6 +154,11 @@ function fuseTracking(input) {
     engagement_proba_pct = labelToProbaPct(engagement)
   }
 
+  // Idle + disengaged should not read as Medium/High cognitive load when the webcam row disagrees.
+  if (lowAct && engagement === 'Low' && !synthetic_webcam) {
+    final_cognitive_load = 'Low'
+  }
+
   return {
     activity_load,
     engagement,
