@@ -555,3 +555,7 @@ body {
   border-radius: var(--radius-sm);
   background: var(--green-50);
 }
+
+.camera-status-tracking {
+  margin-top: 10px;
+}
