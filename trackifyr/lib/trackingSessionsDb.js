@@ -1,5 +1,5 @@
 import { query } from '@/lib/db'
-import { fusionEngagementToTier } from '@/lib/engagementTier'
+import { fusionEngagementToTier, fusionEngagementToTierIndex } from '@/lib/engagementTier'
 import { SESSION_LOG_PAGE_SIZE, WEEKLY_ROLLING_DAYS } from '@/lib/trackingConstants'
 
 export { SESSION_LOG_PAGE_SIZE, WEEKLY_ROLLING_DAYS } from '@/lib/trackingConstants'
@@ -138,6 +138,48 @@ export async function getTodayAverageActivityPercent(userId) {
   const sa = Number(r.rows[0]?.sa) || 0
   if (sc <= 0) return null
   return Math.max(0, Math.min(100, Math.round(sa / sc)))
+}
+
+/**
+ * All 5-minute buckets for the current UTC day, ascending — for the session chart (activity + engagement tier).
+ * @param {number} userId
+ * @returns {Promise<Array<{ time: string, load: number, engagementTier: number }>>}
+ */
+export async function listTodayBucketsForChart(userId) {
+  if (!userId) return []
+  await ensureTrackingBucketsTable()
+  const now = new Date()
+  const startUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
+  const endUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
+  const r = await query(
+    `
+    SELECT
+      bucket_start,
+      sum_activity,
+      sum_engagement_score,
+      sample_count
+    FROM tracking_five_minute_buckets
+    WHERE user_id = $1
+      AND bucket_start >= $2::timestamptz
+      AND bucket_start < $3::timestamptz
+    ORDER BY bucket_start ASC
+  `,
+    [userId, new Date(startUtc).toISOString(), new Date(endUtc).toISOString()],
+  )
+
+  return r.rows.map((row) => {
+    const n = Math.max(1, Number(row.sample_count) || 1)
+    const avgAct = Number(row.sum_activity) / n
+    const avgEng = Number(row.sum_engagement_score) / n
+    const engLabel = engagementFromAvgScore(avgEng)
+    const tierIdx = fusionEngagementToTierIndex(engLabel) ?? 2
+    const start = new Date(row.bucket_start)
+    return {
+      time: start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      load: Math.round(Math.max(0, Math.min(100, avgAct))),
+      engagementTier: tierIdx,
+    }
+  })
 }
 
 /**

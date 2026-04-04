@@ -13,8 +13,6 @@ import { useAuth } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
 export default function ProfilePage() {
   const router = useRouter()
   const { isAuthenticated, user, isAuthLoading } = useAuth()
@@ -51,12 +49,6 @@ export default function ProfilePage() {
       newErrors.fullName = 'Full Name is required'
     }
 
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required'
-    } else if (!EMAIL_REGEX.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address'
-    }
-
     return newErrors
   }
 
@@ -83,7 +75,7 @@ export default function ProfilePage() {
 
     try {
       if (typeof window !== 'undefined') {
-        const updatedUser = { ...user, ...formData }
+        const updatedUser = { ...user, fullName: formData.fullName.trim(), email: user?.email }
         localStorage.setItem('user', JSON.stringify(updatedUser))
         setIsEditing(false)
         setErrors({})
@@ -154,19 +146,12 @@ export default function ProfilePage() {
                     type="email"
                     name="email"
                     value={formData.email}
-                    onChange={handleChange}
-                    disabled={!isEditing}
-                    className={`w-full px-4 py-2 border rounded-lg ${
-                      isEditing
-                        ? errors.email
-                          ? 'border-red-300 focus:ring-2 focus:ring-red-500'
-                          : 'border-gray-300 focus:ring-2 focus:ring-indigo-500'
-                        : 'border-gray-200 bg-gray-50'
-                    }`}
+                    readOnly
+                    disabled
+                    aria-readonly="true"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                   />
-                  {errors.email && (
-                    <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                  )}
+                  <p className="mt-1 text-xs text-gray-500">Email cannot be changed here.</p>
                 </div>
 
                 {errors.submit && (

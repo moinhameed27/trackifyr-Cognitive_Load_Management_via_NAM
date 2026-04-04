@@ -26,9 +26,11 @@ export async function GET(request) {
   const includeWeekly = url.searchParams.get('weekly') !== '0'
 
   try {
-    const total = await countFiveMinuteBucketsForUser(userId)
     const offset = (page - 1) * limit
-    const sessions = await listFiveMinuteSessionsForUser(userId, limit, offset)
+    const [total, sessions] = await Promise.all([
+      countFiveMinuteBucketsForUser(userId),
+      listFiveMinuteSessionsForUser(userId, limit, offset),
+    ])
     const totalPages = Math.max(1, Math.ceil(total / limit))
     const weekly = includeWeekly ? await listRollingDailyAggregatesForUser(userId) : []
 

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Cognitive load charts — activity % and engagement tier index (1–3) for the session.
+ * @fileoverview Cognitive load charts — activity % and engagement tier (today UTC + weekly rollups).
  */
 
 'use client'
@@ -66,9 +66,9 @@ export default function CognitiveLoadCharts({
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-100 p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Cognitive load (session)</h2>
+            <h2 className="text-xl font-bold text-gray-900">Cognitive load (today)</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Activity load (%) and engagement tier (Minor → Major) while the desktop app is sending data
+              Activity load (%) and engagement tier (Minor → Major) from stored 5-minute buckets for the current UTC day
             </p>
           </div>
         </div>
@@ -77,7 +77,7 @@ export default function CognitiveLoadCharts({
             className="flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/80 text-gray-500 text-sm px-4 text-center"
             style={{ minHeight: CHART_HEIGHT }}
           >
-            No samples — open the desktop app, start tracking, and keep this page open
+            No 5-minute data for today yet — run the desktop app to record activity; past buckets stay visible after you close it
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>

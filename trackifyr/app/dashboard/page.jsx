@@ -7,7 +7,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
@@ -16,7 +16,7 @@ import CognitiveLoadCard from '@/components/CognitiveLoadCard'
 import CognitiveLoadCharts from '@/components/CognitiveLoadCharts'
 import SessionLogsTable from '@/components/SessionLogsTable'
 import FeedbackPanel from '@/components/FeedbackPanel'
-import { fusionEngagementToTier, fusionEngagementToTierIndex } from '@/lib/engagementTier'
+import { fusionEngagementToTier } from '@/lib/engagementTier'
 import { postTrackingFilterToBridge } from '@/lib/trackingBridgeClient'
 import { SESSION_LOG_PAGE_SIZE } from '@/lib/trackingConstants'
 
@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [sessionTotal, setSessionTotal] = useState(0)
   const [sessionTotalPages, setSessionTotalPages] = useState(1)
   const [weeklySeries, setWeeklySeries] = useState([])
+  const sessionPageRef = useRef(1)
 
   const fetchLive = useCallback(async () => {
     try {
@@ -54,10 +55,40 @@ export default function DashboardPage() {
     }
   }, [])
 
+  /** Today's 5-min buckets for the cognitive load chart (UTC day), even when the desktop app is off. */
+  const fetchDayChart = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tracking/chart-day', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data?.ok && Array.isArray(data.points)) setChartSeries(data.points)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const fetchWeekly = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tracking/weekly', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data?.ok && Array.isArray(data.weekly)) setWeeklySeries(data.weekly)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  /** Session table only — `weekly=0` avoids the heavier weekly aggregation on every page change. */
   const fetchSessionsData = useCallback(async (page = 1) => {
     try {
       const res = await fetch(
-        `/api/tracking/sessions?page=${page}&limit=${SESSION_LOG_PAGE_SIZE}`,
+        `/api/tracking/sessions?page=${page}&limit=${SESSION_LOG_PAGE_SIZE}&weekly=0`,
         {
           cache: 'no-store',
           credentials: 'same-origin',
@@ -70,7 +101,6 @@ export default function DashboardPage() {
       if (typeof data.page === 'number') setSessionPage(data.page)
       if (typeof data.total === 'number') setSessionTotal(data.total)
       if (typeof data.totalPages === 'number') setSessionTotalPages(data.totalPages)
-      if (Array.isArray(data.weekly)) setWeeklySeries(data.weekly)
     } catch {
       /* ignore */
     }
@@ -83,18 +113,36 @@ export default function DashboardPage() {
   }, [isAuthLoading, isAuthenticated, router])
 
   useEffect(() => {
+    sessionPageRef.current = sessionPage
+  }, [sessionPage])
+
+  useEffect(() => {
     if (!isAuthenticated) return
     fetchLive()
-    void fetchSessionsData(sessionPage)
-    const id = setInterval(fetchLive, 2500)
-    const idS = setInterval(() => {
-      void fetchSessionsData(sessionPage)
-    }, 12000)
+    void fetchDayChart()
+    void fetchWeekly()
+    const idLive = setInterval(fetchLive, 2500)
+    const idChart = setInterval(fetchDayChart, 20000)
+    const idWeekly = setInterval(fetchWeekly, 45000)
     return () => {
-      clearInterval(id)
-      clearInterval(idS)
+      clearInterval(idLive)
+      clearInterval(idChart)
+      clearInterval(idWeekly)
     }
-  }, [isAuthenticated, fetchLive, fetchSessionsData, sessionPage])
+  }, [isAuthenticated, fetchLive, fetchDayChart, fetchWeekly])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    void fetchSessionsData(sessionPage)
+  }, [isAuthenticated, sessionPage, fetchSessionsData])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const idSessions = setInterval(() => {
+      void fetchSessionsData(sessionPageRef.current)
+    }, 20000)
+    return () => clearInterval(idSessions)
+  }, [isAuthenticated, fetchSessionsData])
 
   /** Desktop bridge (browser → 127.0.0.1) + API fallback so filter mode matches fused ingest. */
   useEffect(() => {
@@ -109,24 +157,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!live || !live.hasData) {
-      setChartSeries([])
       return
     }
     setLastUpdated(Date.now())
-    const label = new Date().toLocaleTimeString()
-    const tierIdx = fusionEngagementToTierIndex(live.engagement)
-    const row = {
-      time: label,
-      load: typeof live.activity_load === 'number' ? live.activity_load : 0,
-      engagementTier: tierIdx != null ? tierIdx : 2,
-    }
-    setChartSeries((prev) => {
-      const last = prev[prev.length - 1]
-      if (last && last.load === row.load && last.engagementTier === row.engagementTier) {
-        return prev
-      }
-      return [...prev, row].slice(-48)
-    })
   }, [live])
 
   if (isAuthLoading || !isAuthenticated) {
@@ -181,7 +214,7 @@ export default function DashboardPage() {
         typeof live?.daily_avg_activity_pct === 'number' && !Number.isNaN(live.daily_avg_activity_pct)
           ? `${Math.round(live.daily_avg_activity_pct)}%`
           : '—',
-      change: 'Avg of all ingests today · resets 00:00 UTC',
+      change: 'Resets 00:00 UTC',
       color: 'purple',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
