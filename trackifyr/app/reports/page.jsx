@@ -10,6 +10,7 @@ import { useAuth } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
 import CognitiveLoadCharts from '@/components/CognitiveLoadCharts'
+import ReportVisualizations from '@/components/ReportVisualizations'
 import {
   downloadDailyPdf,
   downloadWeeklyPdf,
@@ -75,7 +76,7 @@ export default function ReportsPage() {
     setPdfBusy('daily')
     try {
       const p = await fetchReportPayload('daily')
-      downloadDailyPdf(p)
+      await downloadDailyPdf(p)
     } catch (e) {
       setPdfError(e?.message || 'Could not generate PDF')
     } finally {
@@ -88,7 +89,7 @@ export default function ReportsPage() {
     setPdfBusy('weekly')
     try {
       const p = await fetchReportPayload('weekly')
-      downloadWeeklyPdf(p)
+      await downloadWeeklyPdf(p)
     } catch (e) {
       setPdfError(e?.message || 'Could not generate PDF')
     } finally {
@@ -119,8 +120,8 @@ export default function ReportsPage() {
           <div className="mb-6 rounded-2xl border border-indigo-100 bg-white/90 p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Export PDF (PKT)</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Download a formatted report with the same aggregates as the dashboard: daily lists every 5-minute window
-              today; weekly summarizes the last seven PKT days.
+              PDFs include summary text plus simple charts (activity sparkline, cognitive mix, weekly bars). Same data
+              as below — daily lists every 5-minute window today; weekly summarizes the last seven PKT days.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
@@ -161,7 +162,14 @@ export default function ReportsPage() {
             </div>
           </div>
 
+          <ReportVisualizations
+            dailyRows={dailyRows}
+            weeklyRows={weeklyRows}
+            chartSeries={chartSeries}
+          />
+
           <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Detailed charts (dashboard parity)</h2>
             <CognitiveLoadCharts
               loadSeries={chartSeries}
               dailySeries={weeklySeries}

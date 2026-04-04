@@ -147,15 +147,19 @@ export default function DashboardPage() {
     return () => clearInterval(idSessions)
   }, [isAuthenticated, fetchSessionsData])
 
-  /** Default tracking mode: combined (desktop bridge + API). */
+  /** Combined mode via browser → local Electron bridge (127.0.0.1). Do not rely on /api/tracking/filter — the Next server cannot reach the user's machine when deployed remotely. */
   useEffect(() => {
     if (!isAuthenticated) return
-    void postTrackingFilterToBridge('combined')
-    void fetch('/api/tracking/filter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'combined' }),
-    }).catch(() => {})
+    const t1 = setTimeout(() => {
+      void postTrackingFilterToBridge('combined')
+    }, 300)
+    const t2 = setTimeout(() => {
+      void postTrackingFilterToBridge('combined')
+    }, 2000)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
   }, [isAuthenticated])
 
   useEffect(() => {

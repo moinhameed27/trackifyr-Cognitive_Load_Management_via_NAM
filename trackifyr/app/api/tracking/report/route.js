@@ -7,6 +7,7 @@ import {
   getTodayAverageActivityPercent,
   listPktDayBucketsAscendingForReport,
   listRollingDailyAggregatesForUser,
+  listTodayBucketsForChart,
 } from '@/lib/trackingSessionsDb'
 
 export const runtime = 'nodejs'
@@ -37,6 +38,7 @@ export async function GET(request) {
 
     if (period === 'daily') {
       const rows = await listPktDayBucketsAscendingForReport(userId)
+      const chartPoints = await listTodayBucketsForChart(userId)
       const dailyAvg = await getTodayAverageActivityPercent(userId)
       return Response.json({
         ok: true,
@@ -46,6 +48,7 @@ export async function GET(request) {
         pktDateLabel,
         daily: {
           rows,
+          chartPoints,
           summary: {
             bucketCount: rows.length,
             dailyAvgActivityPct: dailyAvg,
