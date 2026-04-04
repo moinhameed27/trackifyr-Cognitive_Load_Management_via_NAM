@@ -19,27 +19,94 @@ import time
 import traceback
 from collections import Counter, deque
 from pathlib import Path
-import cv2
-import joblib
-import numpy as np
-import torch
-
-from ml.daisee_common import ARTIFACTS_DIR, LABEL_NAMES
-from ml.ensemble_vote import ensemble_final_load
-from ml.features_v1 import NUM_SAMPLE_FRAMES, frame_mean_std, v1_vector_from_series
-from ml.features_v2 import FaceMeshExtractor, V2Rolling
-from ml.model_v3 import CognitiveLoadNet3, V3FrameBuffer, frame_to_tensor_v3, get_device
 
 
-def open_webcam(camera_index: int):
+def _emit_missing_dep(module_name: str) -> None:
+    """Stdout JSON only — Electron parses this before any traceback."""
+    print(
+        json.dumps(
+            {
+                "_trackifyr_error": True,
+                "error": "missing_dependency",
+                "module": module_name,
+                "stage": "import",
+                "message": f"Missing module: {module_name}",
+            }
+        ),
+        flush=True,
+    )
+    sys.exit(1)
+
+
+try:
+    import cv2
+except ImportError:
+    _emit_missing_dep("cv2")
+try:
+    import joblib
+except ImportError:
+    _emit_missing_dep("joblib")
+try:
+    import numpy as np
+except ImportError:
+    _emit_missing_dep("numpy")
+try:
+    import torch
+except ImportError:
+    _emit_missing_dep("torch")
+try:
+    import mediapipe  # noqa: F401
+except ImportError:
+    _emit_missing_dep("mediapipe")
+try:
+    import pandas  # noqa: F401
+except ImportError:
+    _emit_missing_dep("pandas")
+try:
+    import sklearn  # noqa: F401
+except ImportError:
+    _emit_missing_dep("sklearn")
+try:
+    import torchvision  # noqa: F401
+except ImportError:
+    _emit_missing_dep("torchvision")
+
+try:
+    from ml.daisee_common import ARTIFACTS_DIR, LABEL_NAMES
+    from ml.ensemble_vote import ensemble_final_load
+    from ml.features_v1 import NUM_SAMPLE_FRAMES, frame_mean_std, v1_vector_from_series
+    from ml.features_v2 import FaceMeshExtractor, V2Rolling
+    from ml.model_v3 import CognitiveLoadNet3, V3FrameBuffer, frame_to_tensor_v3, get_device
+except ImportError as e:
+    _emit_missing_dep(getattr(e, "name", None) or "ml")
+
+
+def _log_webcam(msg: str) -> None:
+    """All human-readable diagnostics go to stderr so stdout stays JSON-only in --stream-json mode."""
+    print(f"[trackifyr webcam] {msg}", file=sys.stderr, flush=True)
+
+
+def emit_stream_json_error(stage: str, message: str, **extra: object) -> None:
+    """Single JSON line on stdout for Electron to parse (does not replace fused payloads)."""
+    payload: dict = {"_trackifyr_error": True, "stage": stage, "message": message}
+    payload.update({k: v for k, v in extra.items() if v is not None})
+    print(json.dumps(payload), flush=True)
+
+
+def emit_stream_event(event: str) -> None:
+    """Diagnostic lifecycle line — ignored by fusion; must stay valid JSON."""
+    print(json.dumps({"_trackifyr_event": event}), flush=True)
+
+
+def try_open_webcam(camera_index: int):
     """
-    Open a capture device with settings that work reliably on Windows (DirectShow)
-    and other platforms. Tries an alternate index when the default fails.
+    Open a capture device. Logs each attempt to stderr.
+    Returns cv2.VideoCapture or None if every index/backend failed.
     """
     win = platform.system() == "Windows"
     indices = [camera_index]
     if camera_index == 0:
-        indices = [0, 1]
+        indices = [0, 1, 2]
 
     for idx in indices:
         attempts = []
@@ -50,12 +117,15 @@ def open_webcam(camera_index: int):
                 attempts.append((idx, cv2.CAP_MSMF))
         attempts.append((idx, None))
 
-        for _i, api in attempts:
+        for _cap_idx, api in attempts:
+            api_name = "default" if api is None else str(api)
             if api is None:
                 cap = cv2.VideoCapture(idx)
             else:
                 cap = cv2.VideoCapture(idx, api)
-            if not cap.isOpened():
+            opened = cap.isOpened()
+            _log_webcam(f"VideoCapture index={idx} api={api_name} isOpened={opened}")
+            if not opened:
                 try:
                     cap.release()
                 except Exception:
@@ -64,22 +134,36 @@ def open_webcam(camera_index: int):
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             ok = False
-            for _ in range(5):
+            for attempt in range(10):
                 ok, _ = cap.read()
                 if ok:
                     break
-                time.sleep(0.04)
+                time.sleep(0.05)
+            _log_webcam(f"index={idx} api={api_name} test_read_ok={ok}")
             if ok:
+                _log_webcam(f"using camera index={idx} api={api_name}")
                 return cap
             try:
                 cap.release()
             except Exception:
                 pass
 
-    raise SystemExit(
-        "Could not open webcam (try TRACKIFYR_WEBCAM_INDEX=1, close other apps using the camera, "
-        "or set TRACKIFYR_WEBCAM_VERBOSE=1 for details)"
+    _log_webcam(
+        "failed to open any camera (try TRACKIFYR_WEBCAM_INDEX, close other apps, "
+        "or TRACKIFYR_WEBCAM_VERBOSE=1)"
     )
+    return None
+
+
+def open_webcam(camera_index: int):
+    """Open webcam or exit with non-stream-json friendly message."""
+    cap = try_open_webcam(camera_index)
+    if cap is None:
+        raise SystemExit(
+            "Could not open webcam (try TRACKIFYR_WEBCAM_INDEX=1, close other apps using the camera, "
+            "or set TRACKIFYR_WEBCAM_VERBOSE=1 for details)"
+        )
+    return cap
 
 
 def smooth_label(history: deque, pred: int, window: int = 7) -> int:
@@ -210,6 +294,7 @@ def run_combined_stream_json(cap, v1_model, v2_model, net_v3, device, args) -> N
     ema_beta = 0.75
 
     net_v3.eval()
+    _log_webcam("stream-json inference loop started")
 
     prev_ear: float | None = None
     interval_blinks = 0
@@ -221,12 +306,20 @@ def run_combined_stream_json(cap, v1_model, v2_model, net_v3, device, args) -> N
     show_ui = bool(getattr(args, "preview", False))
 
     frames = 0
+    consecutive_bad_frames = 0
+    max_bad = 120  # ~few seconds at typical FPS before giving up
     try:
         with torch.no_grad():
             while True:
                 ok, frame = cap.read()
-                if not ok:
-                    break
+                if not ok or frame is None:
+                    consecutive_bad_frames += 1
+                    if consecutive_bad_frames >= max_bad:
+                        _log_webcam(f"too many bad frames ({consecutive_bad_frames}), stopping loop")
+                        break
+                    time.sleep(0.02)
+                    continue
+                consecutive_bad_frames = 0
 
                 m, s = frame_mean_std(frame)
                 means.append(m)
@@ -381,45 +474,66 @@ def main() -> None:
     if getattr(args, "stream_json", False) and args.json_interval <= 0:
         raise SystemExit("--json-interval must be greater than 0")
 
-    cap = open_webcam(args.camera)
-
     if args.stream_json:
+        emit_stream_event("script_started")
         p1, p2, p3 = Path(args.v1_model), Path(args.v2_model), Path(args.v3_model)
         for label, p in (("v1", p1), ("v2", p2), ("v3", p3)):
             if not p.is_file():
-                raise SystemExit(f"Model not found for {label}: {p}")
-        print(
-            f"trackifyr webcam: stream-json v1+v2+v3  json_interval={args.json_interval}s",
-            file=sys.stderr,
-            flush=True,
-        )
+                emit_stream_json_error("model", f"Model file not found for {label}", path=str(p.resolve()))
+                _log_webcam(f"abort: missing model {label} at {p}")
+                raise SystemExit(1)
+        _log_webcam(f"stream-json v1+v2+v3 json_interval={args.json_interval}s")
         if args.max_frames:
-            print(f"trackifyr webcam: will exit after {args.max_frames} frames", file=sys.stderr, flush=True)
+            _log_webcam(f"will exit after {args.max_frames} frames")
 
-        bundle1 = joblib.load(args.v1_model)
-        bundle2 = joblib.load(args.v2_model)
+        try:
+            bundle1 = joblib.load(args.v1_model)
+            bundle2 = joblib.load(args.v2_model)
+        except Exception as e:
+            emit_stream_json_error("model_load", str(e), exc_type=type(e).__name__, path_v12="v1/v2 joblib")
+            _log_webcam(f"joblib load failed: {e}")
+            raise SystemExit(1) from None
+
         if args.device == "auto":
             device = get_device()
         elif args.device == "cuda":
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             device = torch.device("cpu")
-        print(f"v3 using device: {device}", file=sys.stderr, flush=True)
-        ckpt = torch.load(args.v3_model, map_location=device)
-        cfg = ckpt["config"]
-        net = CognitiveLoadNet3(n_classes=cfg["n_classes"], hidden=cfg.get("hidden", 128), pretrained=False)
-        net.load_state_dict(ckpt["state_dict"])
-        net.to(device)
+        _log_webcam(f"v3 using device: {device}")
+
+        try:
+            ckpt = torch.load(args.v3_model, map_location=device)
+            cfg = ckpt["config"]
+            net = CognitiveLoadNet3(n_classes=cfg["n_classes"], hidden=cfg.get("hidden", 128), pretrained=False)
+            net.load_state_dict(ckpt["state_dict"])
+            net.to(device)
+        except Exception as e:
+            emit_stream_json_error("model_load", str(e), exc_type=type(e).__name__, path=str(Path(args.v3_model).resolve()))
+            _log_webcam(f"v3 checkpoint load failed: {e}")
+            if os.environ.get("TRACKIFYR_WEBCAM_VERBOSE", "").strip() == "1":
+                traceback.print_exc(file=sys.stderr)
+            raise SystemExit(1) from None
+
+        emit_stream_event("models_loaded")
+        _log_webcam("models loaded; opening camera")
+        cap = try_open_webcam(args.camera)
+        if cap is None:
+            emit_stream_json_error(
+                "camera",
+                "Could not open webcam (see stderr for backend attempts)",
+            )
+            raise SystemExit(1)
+
+        emit_stream_event("camera_initialized")
+
         try:
             run_combined_stream_json(cap, bundle1["model"], bundle2["model"], net, device, args)
         except KeyboardInterrupt:
-            print("\nStopping webcam (stream-json).", file=sys.stderr, flush=True)
+            _log_webcam("Stopping webcam (stream-json).")
         except Exception as e:
-            print(
-                f"trackifyr webcam fatal: {type(e).__name__}: {e}",
-                file=sys.stderr,
-                flush=True,
-            )
+            _log_webcam(f"fatal: {type(e).__name__}: {e}")
+            emit_stream_json_error("runtime", str(e), exc_type=type(e).__name__)
             if os.environ.get("TRACKIFYR_WEBCAM_VERBOSE", "").strip() == "1":
                 traceback.print_exc(file=sys.stderr)
             raise SystemExit(1) from None
@@ -433,6 +547,8 @@ def main() -> None:
             except Exception:
                 pass
         return
+
+    cap = open_webcam(args.camera)
 
     ver = args.version
     model_paths = {"v1": Path(args.v1_model), "v2": Path(args.v2_model), "v3": Path(args.v3_model)}

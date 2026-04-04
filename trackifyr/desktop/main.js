@@ -18,7 +18,13 @@ function loadReleaseConfigApiBase() {
   return ''
 }
 
-const FIXED_API_BASE = (process.env.TRACKIFYR_API_BASE || loadReleaseConfigApiBase() || '').trim()
+/** Production installer: use release-config. Dev (`npm run desktop`): default to localhost so local sign-in works. */
+const FIXED_API_BASE = (() => {
+  const env = String(process.env.TRACKIFYR_API_BASE || '').trim()
+  if (env) return env
+  if (app.isPackaged) return loadReleaseConfigApiBase()
+  return ''
+})()
 const API_BASE_LOCKED = Boolean(FIXED_API_BASE)
 const API_BASE_DEFAULT = FIXED_API_BASE || 'http://localhost:3000'
 

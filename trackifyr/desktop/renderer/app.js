@@ -322,12 +322,17 @@
       const prefix =
         wpe === 'no_models'
           ? 'ML missing · '
-          : wpe === 'exited'
-            ? 'Webcam ML unavailable · '
-            : ''
+          : wpe === 'dependency'
+            ? 'Python deps missing · '
+            : wpe === 'exited'
+              ? 'Webcam ML unavailable · '
+              : ''
       if (!fused) {
         if (running && wpe === 'no_models') trackingStatus.textContent = 'ML models missing (install artifacts/daisee)'
-        else if (running && wpe === 'exited') {
+        else if (running && wpe === 'dependency') {
+          trackingStatus.textContent =
+            'Python packages missing — run: py -3 -m pip install -r requirements.txt (see README), then restart the session'
+        } else if (running && wpe === 'exited') {
           trackingStatus.textContent =
             'Webcam ML stopped — ensure Python has torch/opencv/mediapipe (pip install -r requirements.txt), Windows camera privacy allows desktop apps, and only one app uses the camera'
         } else if (running) trackingStatus.textContent = ''

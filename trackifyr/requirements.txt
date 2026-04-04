@@ -1,3 +1,8 @@
+# Python 3.10+ recommended (matches `py -3` / Electron TRACKIFYR_PYTHON).
+# Desktop tracking (activity_tracker.py + webcam_cognitive_load.py): install with
+#   py -3 -m pip install -r requirements.txt
+# Or run scripts/setup_tracking_env.bat (Windows) or scripts/setup_tracking_env.sh (Unix).
+
 pynput==1.7.6
 pyautogui==0.9.54
 

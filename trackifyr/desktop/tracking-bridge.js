@@ -49,11 +49,20 @@ const ACTIVITY_INTERVAL_SEC = Math.max(1, Number(process.env.TRACKIFYR_ACTIVITY_
 const WEBCAM_JSON_INTERVAL = Math.max(1, Number(process.env.TRACKIFYR_WEBCAM_JSON_INTERVAL_SEC) || 5)
 const WEBCAM_RELAUNCH_MS = Math.max(500, Number(process.env.TRACKIFYR_WEBCAM_RELAUNCH_MS) || 2000)
 const WEBCAM_RELAUNCH_MAX = Math.max(0, Number(process.env.TRACKIFYR_WEBCAM_RELAUNCH_MAX) || 5)
+/** Warn if no valid JSON line within this window (ms) after spawn or after last line */
+const WEBCAM_STALL_MS = Math.max(15000, Number(process.env.TRACKIFYR_WEBCAM_STALL_MS) || 45000)
 
 /** @type {{ cmd: string, prefixArgs: string[] } | null} */
 let resolvedPythonCmd = null
 let webcamRelaunchTimer = null
 let webcamRelaunchAttempts = 0
+/** @type {ReturnType<typeof setInterval> | null} */
+let webcamStallTimer = null
+let webcamSpawnAt = 0
+let webcamLastJsonAt = 0
+let webcamStallWarned = false
+/** Last `{ _trackifyr_error }` line from Python stdout, if any */
+let lastWebcamErrorJson = null
 
 let activityProc = null
 let webcamProc = null
@@ -61,8 +70,10 @@ let lastActivity = null
 let lastWebcam = null
 let lastFused = null
 let webcamEnabled = false
-/** @type {null | 'no_models' | 'exited'} */
+/** @type {null | 'no_models' | 'exited' | 'dependency'} */
 let webcamPipelineError = null
+/** Set when a missing Python package or import failure is detected — blocks useless relaunches */
+let webcamDependencyBlocked = false
 /** Last stderr from webcam_cognitive_load (capped) for UI + debug */
 let lastWebcamStderr = ''
 /** @type {'combined' | 'activity' | 'webcam'} */
@@ -181,6 +192,91 @@ function pythonEnv(cwdRoot) {
   return env
 }
 
+/** Match Python 3 ModuleNotFoundError / ImportError text */
+const RE_NO_MODULE = /No module named ['"]([^'"]+)['"]/g
+
+/**
+ * @param {string} text
+ * @returns {string | null}
+ */
+function parseModuleNotFoundFromStderr(text) {
+  if (!text) return null
+  RE_NO_MODULE.lastIndex = 0
+  let m = RE_NO_MODULE.exec(text)
+  let last = null
+  while (m) {
+    last = m[1]
+    m = RE_NO_MODULE.exec(text)
+  }
+  return last
+}
+
+/**
+ * Preflight: same interpreter as tracking (`py -3` or TRACKIFYR_PYTHON).
+ * Uses importlib (authoritative); optional pip list snippet on failure for logs.
+ * @param {string} root
+ * @returns {{ ok: boolean, missing?: string, pipSnippet?: string }}
+ */
+function verifyWebcamPythonDeps(root) {
+  const { cmd, prefixArgs } = resolvePythonCommand()
+  const probe = [
+    'import importlib,sys',
+    "mods=('cv2','joblib','numpy','torch','mediapipe','pandas','sklearn','torchvision')",
+    'for m in mods:',
+    '  try:',
+    '    importlib.import_module(m)',
+    '  except ImportError as e:',
+    '    print(getattr(e,"name",None) or m,file=sys.stderr); sys.exit(2)',
+    'sys.exit(0)',
+  ].join('\n')
+  const r = spawnSync(cmd, [...prefixArgs, '-c', probe], {
+    cwd: root,
+    env: pythonEnv(root),
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 120000,
+  })
+  if (r.status === 0 && !r.error) return { ok: true }
+  const errText = `${r.stderr || ''}\n${r.stdout || ''}`
+  const missing = parseModuleNotFoundFromStderr(errText) || String(errText || '').trim().split(/\s+/)[0] || 'unknown'
+  let pipSnippet = ''
+  try {
+    const pip = spawnSync(cmd, [...prefixArgs, '-m', 'pip', 'list'], {
+      cwd: root,
+      env: pythonEnv(root),
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 60000,
+    })
+    const pl = (pip.stdout || '') + (pip.stderr || '')
+    pipSnippet = pl.split('\n').slice(0, 40).join('\n')
+  } catch {
+    /* ignore */
+  }
+  return { ok: false, missing, pipSnippet }
+}
+
+function markWebcamDependencyFailure(missingLabel, extraStderr) {
+  const first = !webcamDependencyBlocked
+  webcamDependencyBlocked = true
+  webcamPipelineError = 'dependency'
+  lastWebcam = null
+  const tail = (extraStderr || '').slice(-8000)
+  if (tail) lastWebcamStderr = (lastWebcamStderr + '\n' + tail).slice(-32000)
+  if (first) console.error('[trackifyr] Missing Python dependency:', missingLabel)
+  if (extraStderr && process.env.TRACKIFYR_WEBCAM_DEBUG_DEPS === '1') {
+    console.error('[trackifyr] dependency debug stderr:\n', extraStderr.slice(0, 4000))
+  }
+}
+
+function webcamErrorDetailString() {
+  if (lastWebcamErrorJson && typeof lastWebcamErrorJson === 'object') {
+    const s = lastWebcamErrorJson
+    return [s.stage, s.message, s.exc_type, s.path].filter(Boolean).join(' — ').slice(0, 500)
+  }
+  return ''
+}
+
 function broadcastUpdate() {
   const win = getMainWindow && getMainWindow()
   if (!win || win.isDestroyed()) return
@@ -191,7 +287,8 @@ function broadcastUpdate() {
     filterMode,
     webcamEnabled,
     webcamPipelineError,
-    webcamStderrTail: lastWebcamStderr.slice(-600),
+    webcamStderrTail: lastWebcamStderr.slice(-1200),
+    webcamErrorDetail: webcamErrorDetailString(),
   })
 }
 
@@ -319,6 +416,95 @@ function wireStdoutJson(proc, onObj) {
   proc.stderr?.on('data', () => {})
 }
 
+function clearWebcamStallWatch() {
+  if (webcamStallTimer) {
+    try {
+      clearInterval(webcamStallTimer)
+    } catch {
+      /* ignore */
+    }
+    webcamStallTimer = null
+  }
+}
+
+function startWebcamStallWatch() {
+  clearWebcamStallWatch()
+  webcamSpawnAt = Date.now()
+  webcamLastJsonAt = 0
+  webcamStallWarned = false
+  webcamStallTimer = setInterval(() => {
+    if (!webcamProc || !webcamEnabled) return
+    const ref = webcamLastJsonAt || webcamSpawnAt
+    const idle = Date.now() - ref
+    if (idle < WEBCAM_STALL_MS) return
+    if (webcamStallWarned) return
+    webcamStallWarned = true
+    console.warn(
+      '[trackifyr webcam STALL] no valid JSON on stdout for',
+      Math.round(idle / 1000),
+      's — check stderr / Python env (torch, opencv, mediapipe)',
+    )
+  }, 20000)
+}
+
+/**
+ * Webcam process: log every stdout line; handle `{ _trackifyr_error }` lines; validate fused payload shape.
+ */
+function wireWebcamStdout(proc, onValidPayload) {
+  const rl = readline.createInterface({ input: proc.stdout })
+  rl.on('line', (line) => {
+    const trimmed = String(line || '').trim()
+    if (!trimmed) return
+    if (process.env.TRACKIFYR_WEBCAM_DEBUG_STDOUT === '1') {
+      console.log('[trackifyr webcam stdout]', trimmed.slice(0, 800))
+    }
+    const j = safeJsonLine(trimmed)
+    if (!j) {
+      console.warn(
+        '[trackifyr webcam] stdout JSON parse failed, len=',
+        trimmed.length,
+        'preview=',
+        trimmed.slice(0, 200),
+      )
+      return
+    }
+    if (j._trackifyr_event) {
+      if (process.env.TRACKIFYR_WEBCAM_DEBUG_STDOUT === '1') {
+        console.log('[trackifyr webcam event]', j._trackifyr_event)
+      }
+      return
+    }
+    if (j._trackifyr_error === true) {
+      lastWebcamErrorJson = j
+      if (j.error === 'missing_dependency') {
+        const mod = j.module || parseModuleNotFoundFromStderr(String(j.message || '')) || 'unknown'
+        markWebcamDependencyFailure(mod, '')
+        const detail = [j.stage, j.message].filter(Boolean).join(' — ')
+        console.error('[trackifyr webcam] Python missing dependency:', detail)
+        tryFuse()
+        broadcastUpdate()
+        return
+      }
+      const detail = [j.stage, j.message, j.exc_type, j.path].filter(Boolean).join(' — ')
+      lastWebcamStderr = (lastWebcamStderr + '\n[stdout-error] ' + detail).slice(-32000)
+      webcamPipelineError = 'exited'
+      lastWebcam = null
+      console.error('[trackifyr webcam] Python reported error:', detail)
+      tryFuse()
+      broadcastUpdate()
+      return
+    }
+    if (typeof j.final_model_load !== 'string') {
+      console.warn('[trackifyr webcam] JSON line missing string final_model_load, keys=', Object.keys(j))
+      return
+    }
+    webcamLastJsonAt = Date.now()
+    webcamStallWarned = false
+    lastWebcamErrorJson = null
+    onValidPayload(j)
+  })
+}
+
 function safeJsonLine(line) {
   let s = String(line || '').trim()
   if (!s) return null
@@ -340,6 +526,9 @@ function stopChildren() {
     webcamRelaunchTimer = null
   }
   webcamRelaunchAttempts = 0
+  webcamDependencyBlocked = false
+  clearWebcamStallWatch()
+  lastWebcamErrorJson = null
   if (activityProc) {
     try {
       activityProc.kill()
@@ -365,6 +554,7 @@ function stopChildren() {
 
 function scheduleWebcamRelaunch() {
   if (!webcamEnabled) return
+  if (webcamDependencyBlocked) return
   if (webcamProc) return
   if (webcamRelaunchAttempts >= WEBCAM_RELAUNCH_MAX) {
     console.warn('[trackifyr] webcam ML: max relaunch attempts reached')
@@ -408,8 +598,22 @@ function spawnWebcamPipeline() {
     broadcastUpdate()
     return
   }
+  if (webcamDependencyBlocked) return
+
+  const depCheck = verifyWebcamPythonDeps(root)
+  if (!depCheck.ok) {
+    markWebcamDependencyFailure(
+      depCheck.missing || 'unknown',
+      depCheck.pipSnippet ? `pip list (first lines):\n${depCheck.pipSnippet}` : '',
+    )
+    tryFuse()
+    broadcastUpdate()
+    return
+  }
+
   webcamPipelineError = null
   lastWebcamStderr = ''
+  lastWebcamErrorJson = null
   const camIdx = String(process.env.TRACKIFYR_WEBCAM_INDEX ?? '0').trim() || '0'
   const { cmd: pyCmd, args: pyArgs } = pythonSpawnArgs('webcam_cognitive_load.py', [
     '--stream-json',
@@ -426,7 +630,15 @@ function spawnWebcamPipeline() {
     '--v3-model',
     modelPaths.v3,
   ])
+  console.log(
+    '[trackifyr] spawning webcam ML:',
+    pyCmd,
+    pyArgs.slice(0, 6).join(' '),
+    '… cwd=',
+    root,
+  )
   webcamProc = spawn(pyCmd, pyArgs, { cwd: root, env: pythonEnv(root), windowsHide: true })
+  startWebcamStallWatch()
   // #region agent log
   dbgAgent('H2', 'tracking-bridge:spawnWebcamPipeline', 'spawned', { pid: webcamProc.pid, py: pyCmd, camIdx })
   let webcamStderrOnce = false
@@ -436,6 +648,7 @@ function spawnWebcamPipeline() {
     // #region agent log
     dbgAgent('H3', 'tracking-bridge:webcamProc', 'spawn_error', { msg: err && err.message })
     // #endregion
+    clearWebcamStallWatch()
     webcamProc = null
     lastWebcam = null
     if (webcamEnabled) {
@@ -443,7 +656,7 @@ function spawnWebcamPipeline() {
         lastWebcamStderr + String((err && err.message) || err || 'spawn error')
       ).slice(-32000)
       webcamPipelineError = 'exited'
-      scheduleWebcamRelaunch()
+      if (!webcamDependencyBlocked) scheduleWebcamRelaunch()
       tryFuse()
       broadcastUpdate()
     }
@@ -452,6 +665,8 @@ function spawnWebcamPipeline() {
     const raw = String(d)
     const s = raw.trim()
     lastWebcamStderr = (lastWebcamStderr + raw).slice(-32000)
+    const depEarly = parseModuleNotFoundFromStderr(lastWebcamStderr)
+    if (depEarly) markWebcamDependencyFailure(depEarly, '')
     if (s) console.error('[trackifyr webcam stderr]', s.slice(0, 800))
     // #region agent log
     if (s && !webcamStderrOnce) {
@@ -474,17 +689,23 @@ function spawnWebcamPipeline() {
       text: lastWebcamStderr.slice(-12000),
     })
     // #endregion
+    clearWebcamStallWatch()
     webcamProc = null
     lastWebcam = null
     if (code != null && code !== 0 && webcamEnabled) {
-      webcamPipelineError = 'exited'
-      scheduleWebcamRelaunch()
+      const dep = parseModuleNotFoundFromStderr(lastWebcamStderr)
+      if (dep) {
+        markWebcamDependencyFailure(dep, lastWebcamStderr.slice(-4000))
+      } else {
+        webcamPipelineError = 'exited'
+        if (!webcamDependencyBlocked) scheduleWebcamRelaunch()
+      }
     }
     tryFuse()
     broadcastUpdate()
   })
   let webcamJsonLines = 0
-  wireStdoutJson(webcamProc, (j) => {
+  wireWebcamStdout(webcamProc, (j) => {
     webcamJsonLines += 1
     webcamRelaunchAttempts = 0
     if (webcamRelaunchTimer) {
@@ -609,7 +830,8 @@ function startHttpServer() {
         filterMode,
         webcamEnabled,
         webcamPipelineError,
-        webcamStderrTail: lastWebcamStderr.slice(-600),
+        webcamStderrTail: lastWebcamStderr.slice(-1200),
+        webcamErrorDetail: webcamErrorDetailString(),
       })
       return
     }
@@ -701,7 +923,8 @@ function registerIpc(ipcMain) {
     filterMode,
     webcamEnabled,
     webcamPipelineError,
-    webcamStderrTail: lastWebcamStderr.slice(-600),
+    webcamStderrTail: lastWebcamStderr.slice(-1200),
+    webcamErrorDetail: webcamErrorDetailString(),
   }))
 }
 
