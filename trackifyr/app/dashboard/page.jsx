@@ -264,8 +264,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="mb-4 flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-gray-600">Tracking view:</span>
+            <div className="flex flex-wrap items-center gap-2" aria-label="Tracking view">
               {['combined', 'activity', 'webcam'].map((key) => (
                 <button
                   key={key}

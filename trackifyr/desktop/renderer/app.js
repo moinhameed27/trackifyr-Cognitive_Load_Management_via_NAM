@@ -28,7 +28,6 @@
   const timerDisplay = document.getElementById('timer-display')
   const timerPulse = document.getElementById('timer-pulse')
   const btnTimerToggle = document.getElementById('btn-timer-toggle')
-  const timerHint = document.getElementById('timer-hint')
   const btnCamToggle = document.getElementById('btn-cam-toggle')
   const cameraStatus = document.getElementById('camera-status')
 
@@ -144,8 +143,6 @@
       running = true
       timerPulse.classList.add('active')
       btnTimerToggle.textContent = 'Pause'
-      timerHint.textContent =
-        'Running — activity + webcam ML (if on). Pause stops tracking and turns the webcam off. You can still toggle the webcam while running.'
     } else {
       if (runStart != null) accumulatedMs += performance.now() - runStart
       runStart = null
@@ -154,10 +151,6 @@
       rafId = null
       timerPulse.classList.remove('active')
       btnTimerToggle.textContent = 'Start'
-    timerHint.textContent =
-      accumulatedMs > 0
-        ? 'Paused — press Start to resume timer and tracking (webcam turns on again).'
-        : 'Start begins the timer, enables the webcam if needed, and syncs to the dashboard. Pause stops tracking and turns the webcam off.'
     }
     timerDisplay.textContent = formatTime(currentElapsedMs())
     if (running) rafId = requestAnimationFrame(tick)
@@ -245,8 +238,6 @@
     timerDisplay.textContent = '00:00:00'
     timerPulse.classList.remove('active')
     btnTimerToggle.textContent = 'Start'
-    timerHint.textContent =
-      'Start begins the timer, turns the webcam on if needed, and syncs to the dashboard. Pause stops tracking and turns the webcam off.'
     try {
       if (window.trackifyr.trackingStop) await window.trackifyr.trackingStop()
     } catch {

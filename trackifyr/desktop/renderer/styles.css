@@ -480,14 +480,6 @@ body {
   }
 }
 
-.timer-hint {
-  margin: 8px 0 0;
-  font-size: 0.72rem;
-  color: var(--gray-500);
-  text-align: center;
-  line-height: 1.35;
-}
-
 .divider {
   height: 1px;
   background: var(--gray-100);
