@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import platform
 import sys
 import time
+import traceback
 from collections import Counter, deque
 from pathlib import Path
 import cv2
@@ -26,6 +29,54 @@ from ml.ensemble_vote import ensemble_final_load
 from ml.features_v1 import NUM_SAMPLE_FRAMES, frame_mean_std, v1_vector_from_series
 from ml.features_v2 import FaceMeshExtractor, V2Rolling
 from ml.model_v3 import CognitiveLoadNet3, V3FrameBuffer, frame_to_tensor_v3, get_device
+
+
+def open_webcam(camera_index: int):
+    """
+    Open a capture device with settings that work reliably on Windows (DirectShow)
+    and other platforms. Tries an alternate index when the default fails.
+    """
+    win = platform.system() == "Windows"
+    indices = [camera_index]
+    if camera_index == 0:
+        indices = [0, 1]
+
+    for idx in indices:
+        attempts = []
+        if win:
+            attempts.append((idx, cv2.CAP_DSHOW))
+        attempts.append((idx, None))
+
+        for _i, api in attempts:
+            if api is None:
+                cap = cv2.VideoCapture(idx)
+            else:
+                cap = cv2.VideoCapture(idx, api)
+            if not cap.isOpened():
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+                continue
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            ok = False
+            for _ in range(5):
+                ok, _ = cap.read()
+                if ok:
+                    break
+                time.sleep(0.04)
+            if ok:
+                return cap
+            try:
+                cap.release()
+            except Exception:
+                pass
+
+    raise SystemExit(
+        "Could not open webcam (try TRACKIFYR_WEBCAM_INDEX=1, close other apps using the camera, "
+        "or set TRACKIFYR_WEBCAM_VERBOSE=1 for details)"
+    )
 
 
 def smooth_label(history: deque, pred: int, window: int = 7) -> int:
@@ -327,11 +378,7 @@ def main() -> None:
     if getattr(args, "stream_json", False) and args.json_interval <= 0:
         raise SystemExit("--json-interval must be greater than 0")
 
-    cap = cv2.VideoCapture(args.camera)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    if not cap.isOpened():
-        raise SystemExit("Could not open webcam")
+    cap = open_webcam(args.camera)
 
     if args.stream_json:
         p1, p2, p3 = Path(args.v1_model), Path(args.v2_model), Path(args.v3_model)
@@ -364,8 +411,24 @@ def main() -> None:
             run_combined_stream_json(cap, bundle1["model"], bundle2["model"], net, device, args)
         except KeyboardInterrupt:
             print("\nStopping webcam (stream-json).", file=sys.stderr, flush=True)
-        cap.release()
-        cv2.destroyAllWindows()
+        except Exception as e:
+            print(
+                f"trackifyr webcam fatal: {type(e).__name__}: {e}",
+                file=sys.stderr,
+                flush=True,
+            )
+            if os.environ.get("TRACKIFYR_WEBCAM_VERBOSE", "").strip() == "1":
+                traceback.print_exc(file=sys.stderr)
+            raise SystemExit(1) from None
+        finally:
+            try:
+                cap.release()
+            except Exception:
+                pass
+            try:
+                cv2.destroyAllWindows()
+            except Exception:
+                pass
         return
 
     ver = args.version
@@ -377,29 +440,36 @@ def main() -> None:
     if args.max_frames:
         print(f"trackifyr webcam: will exit after {args.max_frames} frames", flush=True)
 
-    if ver == "v1":
-        bundle = joblib.load(args.v1_model)
-        run_v1(cap, bundle["model"], args)
-    elif ver == "v2":
-        bundle = joblib.load(args.v2_model)
-        run_v2(cap, bundle["model"], args)
-    else:
-        if args.device == "auto":
-            device = get_device()
-        elif args.device == "cuda":
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    try:
+        if ver == "v1":
+            bundle = joblib.load(args.v1_model)
+            run_v1(cap, bundle["model"], args)
+        elif ver == "v2":
+            bundle = joblib.load(args.v2_model)
+            run_v2(cap, bundle["model"], args)
         else:
-            device = torch.device("cpu")
-        print(f"v3 using device: {device}")
-        ckpt = torch.load(args.v3_model, map_location=device)
-        cfg = ckpt["config"]
-        net = CognitiveLoadNet3(n_classes=cfg["n_classes"], hidden=cfg.get("hidden", 128), pretrained=False)
-        net.load_state_dict(ckpt["state_dict"])
-        net.to(device)
-        run_v3(cap, net, device, args)
-
-    cap.release()
-    cv2.destroyAllWindows()
+            if args.device == "auto":
+                device = get_device()
+            elif args.device == "cuda":
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            else:
+                device = torch.device("cpu")
+            print(f"v3 using device: {device}")
+            ckpt = torch.load(args.v3_model, map_location=device)
+            cfg = ckpt["config"]
+            net = CognitiveLoadNet3(n_classes=cfg["n_classes"], hidden=cfg.get("hidden", 128), pretrained=False)
+            net.load_state_dict(ckpt["state_dict"])
+            net.to(device)
+            run_v3(cap, net, device, args)
+    finally:
+        try:
+            cap.release()
+        except Exception:
+            pass
+        try:
+            cv2.destroyAllWindows()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

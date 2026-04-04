@@ -299,6 +299,9 @@
     if (trackingStatus) trackingStatus.textContent = ''
     try {
       await preflightCameraThenRelease()
+      // Let the OS / driver release the camera after Chromium stops the stream
+      // before OpenCV opens it (avoids flaky capture on Windows).
+      await new Promise((r) => setTimeout(r, 500))
       if (window.trackifyr.trackingStart) await window.trackifyr.trackingStart({ webcam: true })
       // #region agent log
       dbgAgent('H2', 'renderer:btnTimerToggle', 'trackingStart_resolved', {})
@@ -334,25 +337,32 @@
       if (!trackingStatus) return
       const fused = payload && payload.fused
       const wpe = payload && payload.webcamPipelineError
-      const stderrTail = payload && payload.webcamStderrTail ? String(payload.webcamStderrTail) : ''
-      const stderrShort = stderrTail.replace(/\s+/g, ' ').trim().slice(0, 140)
+      /** User-facing hint only — never raw Python stderr/traceback in the status line. */
       const prefix =
-        wpe === 'no_models' ? 'ML missing · ' : wpe === 'exited' ? 'ML stopped · ' : ''
+        wpe === 'no_models'
+          ? 'ML missing · '
+          : wpe === 'exited'
+            ? 'Webcam ML unavailable · '
+            : ''
       if (!fused) {
-        if (running && wpe === 'no_models') trackingStatus.textContent = 'ML missing'
-        else if (running && wpe === 'exited' && stderrShort) {
-          trackingStatus.textContent = stderrShort
+        if (running && wpe === 'no_models') trackingStatus.textContent = 'ML models missing (install artifacts/daisee)'
+        else if (running && wpe === 'exited') {
+          trackingStatus.textContent = 'Webcam ML stopped — check camera permissions and that no other app uses the camera'
         } else if (running) trackingStatus.textContent = ''
         return
       }
+      const engLabel =
+        fused.webcam_ml_status === 'waiting'
+          ? '…'
+          : fused.engagement != null
+            ? fused.engagement
+            : '—'
       const parts = [
         `Load ${Number(fused.activity_load || 0).toFixed(1)}%`,
-        `Engagement ${fused.engagement != null ? fused.engagement : '—'}`,
+        `Engagement ${engLabel}`,
         `Cognitive ${fused.final_cognitive_load}`,
       ]
-      const lead =
-        wpe === 'exited' && stderrShort ? stderrShort + ' · ' : prefix
-      trackingStatus.textContent = lead + parts.join(' · ')
+      trackingStatus.textContent = prefix + parts.join(' · ')
     })
   }
 
