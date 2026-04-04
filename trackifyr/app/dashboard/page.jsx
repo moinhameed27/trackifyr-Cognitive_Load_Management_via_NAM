@@ -20,6 +20,8 @@ import { fusionEngagementToTier } from '@/lib/engagementTier'
 import { postTrackingFilterToBridge } from '@/lib/trackingBridgeClient'
 import { SESSION_LOG_PAGE_SIZE } from '@/lib/trackingConstants'
 
+const DESKTOP_LINK = '/download?from=dashboard'
+
 const STATS_CARD_COLORS = {
   indigo: 'bg-indigo-100 text-indigo-600',
   green: 'bg-green-100 text-green-600',
@@ -33,7 +35,6 @@ export default function DashboardPage() {
   const [live, setLive] = useState(null)
   const [chartSeries, setChartSeries] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
-  const [viewFilter, setViewFilter] = useState('combined')
   const [sessions, setSessions] = useState([])
   const [sessionPage, setSessionPage] = useState(1)
   const [sessionTotal, setSessionTotal] = useState(0)
@@ -144,16 +145,16 @@ export default function DashboardPage() {
     return () => clearInterval(idSessions)
   }, [isAuthenticated, fetchSessionsData])
 
-  /** Desktop bridge (browser → 127.0.0.1) + API fallback so filter mode matches fused ingest. */
+  /** Default tracking mode: combined (desktop bridge + API). */
   useEffect(() => {
     if (!isAuthenticated) return
-    void postTrackingFilterToBridge(viewFilter)
+    void postTrackingFilterToBridge('combined')
     void fetch('/api/tracking/filter', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: viewFilter }),
+      body: JSON.stringify({ mode: 'combined' }),
     }).catch(() => {})
-  }, [viewFilter, isAuthenticated])
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (!live || !live.hasData) {
@@ -167,18 +168,13 @@ export default function DashboardPage() {
   }
 
   const hasData = Boolean(live?.hasData)
-  const filterLabel =
-    viewFilter === 'activity' ? 'Activity only' : viewFilter === 'webcam' ? 'Webcam only' : 'Combined'
   const engagementTier = hasData ? fusionEngagementToTier(live?.engagement) : null
-  const filterPending = Boolean(
-    hasData && live?.filter_mode && String(live.filter_mode) !== String(viewFilter),
-  )
 
   const statsCards = [
     {
       title: 'Activity load',
       value: hasData && typeof live.activity_load === 'number' ? `${Math.round(live.activity_load)}%` : '—',
-      change: hasData ? `${filterLabel}${filterPending ? ' · updating…' : ''}` : '—',
+      change: hasData ? 'Live' : '—',
       color: 'indigo',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,7 +185,7 @@ export default function DashboardPage() {
     {
       title: 'Engagement',
       value: engagementTier ?? '—',
-      change: hasData ? 'Tier' : '—',
+      change: hasData ? 'Low / Medium / High' : '—',
       color: 'green',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,7 +229,7 @@ export default function DashboardPage() {
         <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="mb-4 text-sm text-gray-600">
             Live metrics come only from the{' '}
-            <Link href="/download" className="font-semibold text-indigo-700 underline hover:text-indigo-900">
+            <Link href={DESKTOP_LINK} className="font-semibold text-indigo-700 underline hover:text-indigo-900">
               desktop app
             </Link>{' '}
             while it is running and ingesting (same account). If you close the app, numbers clear within about half a minute.{' '}
@@ -264,22 +260,6 @@ export default function DashboardPage() {
           </div>
 
           <div className="mb-4 flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2" aria-label="Tracking view">
-              {['combined', 'activity', 'webcam'].map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setViewFilter(key)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                    viewFilter === key
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {key === 'combined' ? 'Combined' : key === 'activity' ? 'Activity only' : 'Webcam only'}
-                </button>
-              ))}
-            </div>
             <CognitiveLoadCard
               hasData={hasData}
               level={live?.final_cognitive_load ?? null}
@@ -294,7 +274,9 @@ export default function DashboardPage() {
             <CognitiveLoadCharts
               loadSeries={chartSeries}
               dailySeries={weeklySeries}
-              hasWeeklyData={weeklySeries.some((d) => (d.sessions ?? 0) > 0 || (d.engagement ?? 0) > 0)}
+              hasWeeklyData={weeklySeries.some(
+                (d) => (d.sessions ?? 0) > 0 || (typeof d.avgActivity === 'number' && d.avgActivity > 0),
+              )}
             />
           </div>
 

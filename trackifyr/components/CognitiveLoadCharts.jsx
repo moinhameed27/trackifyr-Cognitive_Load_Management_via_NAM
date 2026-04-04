@@ -25,9 +25,9 @@ const TOOLTIP_STYLE = {
 }
 
 function tierIndexToLabel(v) {
-  if (v === 1) return 'Minor'
-  if (v === 2) return 'Moderate'
-  if (v === 3) return 'Major'
+  if (v === 1) return 'Low'
+  if (v === 2) return 'Medium'
+  if (v === 3) return 'High'
   return '—'
 }
 
@@ -59,7 +59,9 @@ export default function CognitiveLoadCharts({
       ? hasWeeklyDataProp
       : Array.isArray(dailySeries) &&
         dailySeries.length > 0 &&
-        dailySeries.some((d) => (d.sessions ?? 0) > 0 || (d.engagement ?? 0) > 0)
+        dailySeries.some(
+          (d) => (d.sessions ?? 0) > 0 || (typeof d.avgActivity === 'number' && d.avgActivity > 0),
+        )
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -68,7 +70,7 @@ export default function CognitiveLoadCharts({
           <div>
             <h2 className="text-xl font-bold text-gray-900">Cognitive load (today)</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Activity load (%) and engagement tier (Minor → Major) from stored 5-minute buckets for the current PKT day
+              Activity load (%) and engagement (Low → High) from stored 5-minute buckets for the current PKT day
             </p>
           </div>
         </div>
@@ -103,7 +105,7 @@ export default function CognitiveLoadCharts({
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                label={{ value: 'Engagement tier', angle: 90, position: 'insideRight', style: { fill: '#6b7280' } }}
+                label={{ value: 'Engagement', angle: 90, position: 'insideRight', style: { fill: '#6b7280' } }}
                 tick={{ fontSize: 11, fill: '#6b7280' }}
                 domain={[0.5, 3.5]}
                 ticks={[1, 2, 3]}
@@ -112,7 +114,7 @@ export default function CognitiveLoadCharts({
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 formatter={(value, name) => {
-                  if (name === 'Engagement tier') return [tierIndexToLabel(value), 'Engagement']
+                  if (name === 'Engagement') return [tierIndexToLabel(value), 'Engagement']
                   return [value, name]
                 }}
               />
@@ -134,7 +136,7 @@ export default function CognitiveLoadCharts({
                 stroke="#10b981"
                 strokeWidth={2.5}
                 fill="url(#colorEngagement)"
-                name="Engagement tier"
+                name="Engagement"
                 dot={{ r: 3, fill: '#10b981' }}
               />
             </AreaChart>
@@ -152,8 +154,8 @@ export default function CognitiveLoadCharts({
           <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-900">Weekly aggregates</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Rolling 7 days (PKT calendar days): average engagement score and number of 5-minute windows with data —
-              updates while you ingest
+              Rolling 7 PKT calendar days: average activity % and number of 5-minute windows with data — updates while
+              you ingest
             </p>
           </div>
           <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -161,8 +163,8 @@ export default function CognitiveLoadCharts({
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#6b7280' }} />
               <YAxis
-                yAxisId="eng"
-                label={{ value: 'Avg engagement (0–100)', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
+                yAxisId="act"
+                label={{ value: 'Avg activity % (0–100)', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
                 tick={{ fontSize: 11, fill: '#6b7280' }}
                 domain={[0, 100]}
               />
@@ -176,10 +178,10 @@ export default function CognitiveLoadCharts({
               <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Legend />
               <Bar
-                yAxisId="eng"
-                dataKey="engagement"
+                yAxisId="act"
+                dataKey="avgActivity"
                 fill="#6366f1"
-                name="Avg engagement"
+                name="Avg activity %"
                 radius={[8, 8, 0, 0]}
               />
               <Bar

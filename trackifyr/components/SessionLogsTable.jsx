@@ -11,9 +11,9 @@ const LOAD_BADGE_COLORS = {
 }
 
 const ENGAGEMENT_BADGE_COLORS = {
-  Major: 'bg-blue-100 text-blue-800 border-blue-200',
-  Moderate: 'bg-purple-100 text-purple-800 border-purple-200',
-  Minor: 'bg-orange-100 text-orange-800 border-orange-200',
+  High: 'bg-blue-100 text-blue-800 border-blue-200',
+  Medium: 'bg-purple-100 text-purple-800 border-purple-200',
+  Low: 'bg-orange-100 text-orange-800 border-orange-200',
 }
 
 const DEFAULT_BADGE_COLOR = 'bg-gray-100 text-gray-800 border-gray-200'
@@ -84,7 +84,7 @@ export default function SessionLogsTable({
                   Cognitive load
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Engagement tier
+                  Engagement
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Duration</th>
               </tr>

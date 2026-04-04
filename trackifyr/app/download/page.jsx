@@ -1,6 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import Link from 'next/link'
+import { Suspense } from 'react'
+import DownloadBackLink from './DownloadBackLink'
 
 export const metadata = {
   title: 'Download · trackifyr',
@@ -139,9 +141,9 @@ export default function DownloadPage() {
               </>
             )}
             <div className="pt-2 border-t border-gray-100">
-              <Link href="/signin" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
-                ← Back to sign in
-              </Link>
+              <Suspense fallback={<span className="text-sm text-gray-400">Loading…</span>}>
+                <DownloadBackLink />
+              </Suspense>
             </div>
           </div>
         </div>

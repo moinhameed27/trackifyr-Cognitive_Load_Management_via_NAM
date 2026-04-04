@@ -233,6 +233,54 @@ export async function listFiveMinuteSessionsForUser(userId, limit = SESSION_LOG_
 }
 
 /**
+ * All 5-minute buckets for the current PKT day, ascending — for PDF / full-day export.
+ * @param {number} userId
+ */
+export async function listPktDayBucketsAscendingForReport(userId) {
+  if (!userId) return []
+  await ensureTrackingBucketsTable()
+  const now = new Date()
+  const startUtc = pktStartOfCalendarDay(now)
+  const endUtc = pktEndOfCalendarDayExclusive(now)
+  const r = await query(
+    `
+    SELECT
+      bucket_start,
+      sum_activity,
+      sum_engagement_score,
+      cognitive_high,
+      cognitive_medium,
+      cognitive_low,
+      sample_count
+    FROM tracking_five_minute_buckets
+    WHERE user_id = $1
+      AND bucket_start >= $2::timestamptz
+      AND bucket_start < $3::timestamptz
+    ORDER BY bucket_start ASC
+  `,
+    [userId, startUtc.toISOString(), endUtc.toISOString()],
+  )
+
+  return r.rows.map((row) => {
+    const start = new Date(row.bucket_start)
+    const end = new Date(start.getTime() + 5 * 60 * 1000)
+    const n = Math.max(1, Number(row.sample_count) || 1)
+    const avgAct = Number(row.sum_activity) / n
+    const avgEng = Number(row.sum_engagement_score) / n
+    const engLabel = engagementFromAvgScore(avgEng)
+    return {
+      id: String(row.bucket_start),
+      bucketStart: start.toISOString(),
+      time: formatPktSessionWindow(start, end),
+      cognitiveLoad: dominantCognitive(row),
+      engagement: fusionEngagementToTier(engLabel) || engLabel,
+      duration: '5 min',
+      avgActivity: `${Math.round(avgAct)}%`,
+    }
+  })
+}
+
+/**
  * Rolling last N days (PKT calendar days): avg engagement score and count of 5-minute buckets per day.
  * @param {number} userId
  * @param {number} [days]

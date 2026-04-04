@@ -1,5 +1,5 @@
 /**
- * @fileoverview Cognitive load card — activity load % + engagement tier (Major / Moderate / Minor).
+ * @fileoverview Cognitive load card — activity load % + engagement (Low / Medium / High).
  */
 
 'use client'
@@ -35,9 +35,9 @@ const DEFAULT_CONFIG = {
 }
 
 const TIER_STYLES = {
-  Minor: 'ring-2 ring-orange-400 bg-orange-50 text-orange-900',
-  Moderate: 'ring-2 ring-purple-400 bg-purple-50 text-purple-900',
-  Major: 'ring-2 ring-blue-500 bg-blue-50 text-blue-900',
+  Low: 'ring-2 ring-orange-400 bg-orange-50 text-orange-900',
+  Medium: 'ring-2 ring-purple-400 bg-purple-50 text-purple-900',
+  High: 'ring-2 ring-blue-500 bg-blue-50 text-blue-900',
 }
 
 const getLevelConfig = (level) => {
@@ -85,7 +85,7 @@ export default function CognitiveLoadCard({
               <span className="text-2xl font-bold text-gray-400">—</span>
             </div>
             <div className="flex gap-2">
-              {['Minor', 'Moderate', 'Major'].map((t) => (
+              {['Low', 'Medium', 'High'].map((t) => (
                 <span
                   key={t}
                   className="flex-1 text-center text-xs font-medium py-2 rounded-lg bg-gray-100 text-gray-400 border border-gray-200"
@@ -143,9 +143,9 @@ export default function CognitiveLoadCard({
               ) : null}
             </div>
           </div>
-          <p className="text-xs text-gray-500 mb-3">Derived from the webcam ensemble (Low / Medium / High mapped to Minor / Moderate / Major).</p>
+          <p className="text-xs text-gray-500 mb-3">Derived from the webcam ensemble (Low / Medium / High).</p>
           <div className="grid grid-cols-3 gap-2">
-            {['Minor', 'Moderate', 'Major'].map((t) => (
+            {['Low', 'Medium', 'High'].map((t) => (
               <div
                 key={t}
                 className={`text-center text-sm font-semibold py-2.5 rounded-lg border transition-colors ${

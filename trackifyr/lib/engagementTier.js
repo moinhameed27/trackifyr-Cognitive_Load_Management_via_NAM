@@ -1,17 +1,15 @@
 /**
- * Maps fusion `engagement` (Low / Medium / High) to dashboard labels Major / Moderate / Minor.
+ * Normalizes fusion `engagement` to Low / Medium / High for display.
  */
 
 /** @param {string | null | undefined} engagement */
 export function fusionEngagementToTier(engagement) {
   const e = String(engagement || '')
-  if (e === 'High') return 'Major'
-  if (e === 'Medium') return 'Moderate'
-  if (e === 'Low') return 'Minor'
+  if (e === 'High' || e === 'Medium' || e === 'Low') return e
   return null
 }
 
-/** Numeric tier for charts (1 = Minor … 3 = Major) */
+/** Numeric tier for charts (1 = Low … 3 = High) */
 export function fusionEngagementToTierIndex(engagement) {
   const e = String(engagement || '')
   if (e === 'Low') return 1

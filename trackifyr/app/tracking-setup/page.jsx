@@ -38,7 +38,7 @@ export default function TrackingSetupPage() {
             >
               Download SETUP.md
             </a>
-            <Link href="/download" className="font-semibold text-indigo-600 hover:text-indigo-700">
+            <Link href="/download?from=tracking-setup" className="font-semibold text-indigo-600 hover:text-indigo-700">
               Desktop installer
             </Link>
             <Link href="/dashboard" className="font-semibold text-indigo-600 hover:text-indigo-700">
