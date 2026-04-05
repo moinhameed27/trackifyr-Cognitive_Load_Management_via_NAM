@@ -13,6 +13,8 @@ lerna-debug.log*
 .next/
 out/
 build/
+!desktop/build/
+!desktop/build/installer.nsh
 dist/
 dist-ssr/
 
