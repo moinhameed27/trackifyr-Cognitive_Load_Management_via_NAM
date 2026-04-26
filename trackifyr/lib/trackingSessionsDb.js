@@ -91,13 +91,47 @@ export async function mergeIngestIntoFiveMinuteBucket(userId, body) {
   )
 }
 
-function dominantCognitive(row) {
+/** @param {object} row bucket row with cognitive_* counts */
+export function dominantCognitiveLoadForBucketRow(row) {
   const h = Number(row.cognitive_high) || 0
   const m = Number(row.cognitive_medium) || 0
   const l = Number(row.cognitive_low) || 0
   if (h >= m && h >= l) return 'High'
   if (l >= m && l >= h) return 'Low'
   return 'Medium'
+}
+
+function dominantCognitive(row) {
+  return dominantCognitiveLoadForBucketRow(row)
+}
+
+/**
+ * Most recent PKT 5-minute bucket row for the user (same shape as session log aggregation).
+ * @param {number} userId
+ * @returns {Promise<object | null>}
+ */
+export async function getLatestBucketForUser(userId) {
+  if (!userId) return null
+  await ensureTrackingBucketsTable()
+  const r = await query(
+    `
+    SELECT
+      bucket_start,
+      sum_activity,
+      sum_engagement_score,
+      cognitive_high,
+      cognitive_medium,
+      cognitive_low,
+      sample_count,
+      engagement_sample_count
+    FROM tracking_five_minute_buckets
+    WHERE user_id = $1
+    ORDER BY bucket_start DESC
+    LIMIT 1
+  `,
+    [userId],
+  )
+  return r.rows?.[0] ?? null
 }
 
 function engagementFromAvgScore(s) {

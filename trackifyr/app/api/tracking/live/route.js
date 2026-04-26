@@ -42,7 +42,13 @@ export async function GET(request) {
       if (row?.payload && typeof row.payload === 'object') {
         const updated = row.updatedAt ? new Date(row.updatedAt).getTime() : 0
         if (!updated || Number.isNaN(updated) || Date.now() - updated > STALE_MS) {
-          return Response.json({ ...NO_DATA, daily_avg_activity_pct: dailyAvg })
+          const safe = sanitizeTrackingLivePayload(row.payload)
+          const persistedFeedback = Array.isArray(safe?.feedback_messages) ? safe.feedback_messages : []
+          return Response.json({
+            ...NO_DATA,
+            daily_avg_activity_pct: dailyAvg,
+            feedback_messages: persistedFeedback,
+          })
         }
         return Response.json({
           ...sanitizeTrackingLivePayload(row.payload),

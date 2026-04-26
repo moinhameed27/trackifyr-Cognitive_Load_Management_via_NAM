@@ -7,13 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const nextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ['pg'],
-  // Next 15: turbo lives under experimental (top-level `turbopack` is Next 16+).
-  experimental: {
-    turbo: {
-      root: __dirname,
-      resolveAlias: {
-        '@': path.join(__dirname),
-      },
+  // Next.js 16+: top-level `turbopack` (replaces experimental.turbo).
+  turbopack: {
+    root: __dirname,
+    resolveAlias: {
+      '@': path.join(__dirname),
     },
   },
 }
