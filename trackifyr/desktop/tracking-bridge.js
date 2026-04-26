@@ -323,6 +323,12 @@ function pickWebcamProba(w) {
   return w.cognitive_proba
 }
 
+function pickWebcamLabel(w, key) {
+  if (!w || typeof w[key] !== 'string') return undefined
+  const v = String(w[key]).trim()
+  return v === 'Low' || v === 'Medium' || v === 'High' ? v : undefined
+}
+
 function fusedWithMode(fused) {
   return fused ? { ...fused, filter_mode: filterMode } : null
 }
@@ -365,6 +371,9 @@ function tryFuse() {
       face_detected: w.face_detected,
       synthetic_webcam: false,
       cognitive_proba: pickWebcamProba(w),
+      v1_prediction: pickWebcamLabel(w, 'v1_prediction'),
+      v2_prediction: pickWebcamLabel(w, 'v2_prediction'),
+      v3_prediction: pickWebcamLabel(w, 'v3_prediction'),
     }))
     broadcastUpdate()
     void pushToNextIngest()
@@ -401,6 +410,9 @@ function tryFuse() {
       face_detected: w.face_detected,
       synthetic_webcam: false,
       cognitive_proba: pickWebcamProba(w),
+      v1_prediction: pickWebcamLabel(w, 'v1_prediction'),
+      v2_prediction: pickWebcamLabel(w, 'v2_prediction'),
+      v3_prediction: pickWebcamLabel(w, 'v3_prediction'),
     }))
   }
   broadcastUpdate()

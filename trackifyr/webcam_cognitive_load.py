@@ -73,7 +73,6 @@ except ImportError:
 
 try:
     from ml.daisee_common import ARTIFACTS_DIR, LABEL_NAMES
-    from ml.ensemble_vote import ensemble_final_load
     from ml.features_v1 import NUM_SAMPLE_FRAMES, frame_mean_std, v1_vector_from_series
     from ml.features_v2 import FaceMeshExtractor, V2Rolling
     from ml.model_v3 import CognitiveLoadNet3, V3FrameBuffer, frame_to_tensor_v3, get_device
@@ -176,6 +175,27 @@ def smooth_label(history: deque, pred: int, window: int = 7) -> int:
 # EAR combined is row[2]; yaw proxy is row[4] (see ml.features_v2._per_frame_feats)
 BLINK_EAR_CLOSED = 0.20
 GAZE_YAW_ABS_AWAY = 0.35
+WEIGHT_V1 = 0.15
+WEIGHT_V2 = 0.25
+WEIGHT_V3 = 0.60
+
+
+def weighted_proba_blend(
+    p1: np.ndarray,
+    p2: np.ndarray,
+    p3: np.ndarray,
+    w1: float = WEIGHT_V1,
+    w2: float = WEIGHT_V2,
+    w3: float = WEIGHT_V3,
+) -> np.ndarray:
+    """Blend [Low, Medium, High] probabilities with configurable model weights."""
+    out = (float(w1) * np.asarray(p1, dtype=np.float64)) + (float(w2) * np.asarray(p2, dtype=np.float64)) + (
+        float(w3) * np.asarray(p3, dtype=np.float64)
+    )
+    s = float(np.sum(out))
+    if s > 1e-9:
+        out = out / s
+    return out
 
 
 def run_v1(cap, model, args) -> None:
@@ -393,13 +413,10 @@ def run_combined_stream_json(cap, v1_model, v2_model, net_v3, device, args) -> N
 
                 now = time.monotonic()
                 if now >= next_emit:
-                    final = ensemble_final_load(lv1, lv2, lv3)
                     p1 = np.asarray(proba, dtype=np.float64)
                     p3 = np.asarray(ema, dtype=np.float64)
-                    p_avg = (p1 + proba2 + p3) / 3.0
-                    s = float(np.sum(p_avg))
-                    if s > 1e-9:
-                        p_avg = p_avg / s
+                    p_avg = weighted_proba_blend(p1, proba2, p3)
+                    final = LABEL_NAMES[int(np.argmax(p_avg))]
                     payload = {
                         "timestamp": time.time(),
                         "v1_prediction": lv1,
@@ -409,7 +426,7 @@ def run_combined_stream_json(cap, v1_model, v2_model, net_v3, device, args) -> N
                         "gaze_away": int(interval_gaze_away),
                         "face_detected": bool(last_face),
                         "final_model_load": final,
-                        # Low/Medium/High class probabilities (mean softmax v1+v2+v3) for dashboard engagement %
+                        # Low/Medium/High class probabilities (weighted softmax blend v1+v2+v3; v3 has highest weight)
                         "cognitive_proba": [
                             float(p_avg[0]),
                             float(p_avg[1]),

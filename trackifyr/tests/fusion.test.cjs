@@ -45,7 +45,7 @@ test('low activity + low model => Low final cognitive load', () => {
   assert.strictEqual(o.final_cognitive_load, 'Low')
 })
 
-test('low activity + ensemble Medium + Low engagement (proba) => final cognitive Low', () => {
+test('low activity + ensemble Medium + Low engagement (proba) => final cognitive Medium', () => {
   const o = fuseTracking({
     activity_percentage: 0,
     final_model_load: 'Medium',
@@ -56,7 +56,7 @@ test('low activity + ensemble Medium + Low engagement (proba) => final cognitive
     cognitive_proba: [0.85, 0.1, 0.05],
   })
   assert.strictEqual(o.engagement, 'Low')
-  assert.strictEqual(o.final_cognitive_load, 'Low')
+  assert.strictEqual(o.final_cognitive_load, 'Medium')
 })
 
 test('no face => engagement low', () => {
@@ -165,4 +165,109 @@ test('cognitive_proba path: engagement_score from softmax blend, not activity_lo
   assert.strictEqual(o.activity_load, 90)
   assert.strictEqual(o.engagement_score, 55)
   assert.notStrictEqual(o.engagement_score, o.activity_load)
+})
+
+test('engagement strict override: single noisy High does not force High', () => {
+  const o = fuseTracking({
+    activity_percentage: 60,
+    final_model_load: 'Low',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.8, 0.15, 0.05],
+    v1_prediction: 'Low',
+    v2_prediction: 'Medium',
+    v3_prediction: 'High',
+  })
+  assert.strictEqual(o.engagement, 'Low')
+  assert.strictEqual(o.engagement_score, 35)
+  assert.deepStrictEqual(o.engagement_proba_pct, [80, 15, 5])
+})
+
+test('engagement strict override: two High model votes force High', () => {
+  const o = fuseTracking({
+    activity_percentage: 60,
+    final_model_load: 'Low',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.8, 0.15, 0.05],
+    v1_prediction: 'High',
+    v2_prediction: 'Medium',
+    v3_prediction: 'High',
+  })
+  assert.strictEqual(o.engagement, 'High')
+  assert.strictEqual(o.engagement_score, 68)
+  assert.deepStrictEqual(o.engagement_proba_pct, [0, 0, 100])
+})
+
+test('engagement strict override: one High + strong fused High proba forces High', () => {
+  const o = fuseTracking({
+    activity_percentage: 60,
+    final_model_load: 'Medium',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.1, 0.2, 0.7],
+    v1_prediction: 'Low',
+    v2_prediction: 'High',
+    v3_prediction: 'Medium',
+  })
+  assert.strictEqual(o.engagement, 'High')
+  assert.strictEqual(o.engagement_score, 71)
+  assert.deepStrictEqual(o.engagement_proba_pct, [0, 0, 100])
+})
+
+test('engagement middle-ground override: one High + moderate high proba forces High', () => {
+  const o = fuseTracking({
+    activity_percentage: 50,
+    final_model_load: 'Medium',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.2, 0.25, 0.55],
+    v1_prediction: 'Low',
+    v2_prediction: 'High',
+    v3_prediction: 'Medium',
+  })
+  assert.strictEqual(o.engagement, 'High')
+  assert.deepStrictEqual(o.engagement_proba_pct, [0, 0, 100])
+})
+
+test('cognitive matrix extension: activity >= 80 and engagement Medium => cognitive High', () => {
+  const o = fuseTracking({
+    activity_percentage: 85,
+    final_model_load: 'Low',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.4, 0.5, 0.1], // engagement score 48 => Medium
+    v1_prediction: 'Low',
+    v2_prediction: 'Medium',
+    v3_prediction: 'Low',
+  })
+  assert.strictEqual(o.engagement, 'Medium')
+  assert.strictEqual(o.final_cognitive_load, 'High')
+})
+
+test('cognitive matrix extension: activity <= 15 and engagement Medium => cognitive Low', () => {
+  const o = fuseTracking({
+    activity_percentage: 10,
+    final_model_load: 'High',
+    blinks: 0,
+    gaze_away: 0,
+    face_detected: true,
+    synthetic_webcam: false,
+    cognitive_proba: [0.2, 0.6, 0.2], // engagement score 55 => Medium
+    v1_prediction: 'Low',
+    v2_prediction: 'Medium',
+    v3_prediction: 'Low',
+  })
+  assert.strictEqual(o.engagement, 'Medium')
+  assert.strictEqual(o.final_cognitive_load, 'Low')
 })

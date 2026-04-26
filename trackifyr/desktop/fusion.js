@@ -64,6 +64,14 @@ function engagementLabelFromScore(score) {
   return 'High'
 }
 
+function countModelHigh(input) {
+  let n = 0
+  for (const k of ['v1_prediction', 'v2_prediction', 'v3_prediction']) {
+    if (String(input[k] || '') === 'High') n += 1
+  }
+  return n
+}
+
 /** Soft class priors when we have no cognitive_proba — score uses same formula as the model path. */
 const PRIOR_ENG_GAZE_OR_NO_FACE = [0.78, 0.18, 0.04]
 const PRIOR_ENG_COGNITIVE_LOW = [0.22, 0.62, 0.16]
@@ -92,6 +100,7 @@ function fuseTracking(input) {
   const synthetic_webcam = Boolean(input.synthetic_webcam)
   const webcam_ml_waiting = Boolean(input.webcam_ml_waiting)
   const modelProba = normalizeProba(input.cognitive_proba)
+  const modelHighCount = countModelHigh(input)
 
   const highAct = activity_load >= ACTIVITY_HIGH_THRESHOLD
   const lowAct = activity_load < ACTIVITY_LOW_THRESHOLD
@@ -154,8 +163,23 @@ function fuseTracking(input) {
     engagement_proba_pct = labelToProbaPct(engagement)
   }
 
-  // Idle + disengaged should not read as Medium/High cognitive load when the webcam row disagrees.
-  if (lowAct && engagement === 'Low' && !synthetic_webcam) {
+  // Middle-ground High override: stricter than "any single High", but not too restrictive.
+  // Force High when:
+  // - at least 2 of 3 models predict High, OR
+  // - exactly 1 model predicts High and fused High probability is moderately strong.
+  const strongHighEvidence = modelHighCount >= 2 || (modelHighCount === 1 && modelProba && modelProba[2] >= 0.5)
+  if (!synthetic_webcam && strongHighEvidence && webcam_ml_status === 'active') {
+    engagement = 'High'
+    engagement_score = Math.max(Number(engagement_score) || 0, 68)
+    engagement_proba_pct = [0, 0, 100]
+  }
+
+  // Extra matrix rule: very high activity with Medium engagement should still be treated as High cognitive load.
+  if (activity_load >= 80 && engagement === 'Medium') {
+    final_cognitive_load = 'High'
+  }
+  // Extra matrix rule: very low activity with Medium engagement should be treated as Low cognitive load.
+  if (activity_load <= 15 && engagement === 'Medium') {
     final_cognitive_load = 'Low'
   }
 

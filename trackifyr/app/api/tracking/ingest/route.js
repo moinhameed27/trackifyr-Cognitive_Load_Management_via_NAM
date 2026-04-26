@@ -1,7 +1,12 @@
 import { getSessionTokenFromRequest } from '@/lib/auth-session'
-import { getUserIdFromSessionToken, upsertTrackingLiveForUser } from '@/lib/trackingLiveDb'
+import { getTrackingLive, setTrackingLive } from '@/lib/trackingStore'
+import { applySustainedLoadFeedback } from '@/lib/trackingFeedback'
+import {
+  getTrackingLivePayloadForUser,
+  getUserIdFromSessionToken,
+  upsertTrackingLiveForUser,
+} from '@/lib/trackingLiveDb'
 import { mergeIngestIntoFiveMinuteBucket } from '@/lib/trackingSessionsDb'
-import { setTrackingLive } from '@/lib/trackingStore'
 
 export async function POST(request) {
   try {
@@ -16,9 +21,11 @@ export async function POST(request) {
       if (!userId) {
         return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 })
       }
-      await upsertTrackingLiveForUser(userId, body)
+      const prev = await getTrackingLivePayloadForUser(userId)
+      const enriched = applySustainedLoadFeedback(body, prev?.payload || null)
+      await upsertTrackingLiveForUser(userId, enriched)
       try {
-        await mergeIngestIntoFiveMinuteBucket(userId, body)
+        await mergeIngestIntoFiveMinuteBucket(userId, enriched)
       } catch {
         /* bucket aggregation is best-effort */
       }
@@ -26,7 +33,9 @@ export async function POST(request) {
     }
 
     // Legacy: unauthenticated ingest (local dev only) — in-memory, not user-scoped
-    setTrackingLive(body)
+    const prev = getTrackingLive()
+    const enriched = applySustainedLoadFeedback(body, prev)
+    setTrackingLive(enriched)
     return Response.json({ ok: true })
   } catch {
     return Response.json({ ok: false }, { status: 400 })

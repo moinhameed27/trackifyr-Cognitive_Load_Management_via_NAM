@@ -1,59 +1,31 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 
 export default function TrackingSetupPage() {
-  const [text, setText] = useState('')
-  const [err, setErr] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/releases/SETUP.md', { cache: 'no-store' })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.text()
-      })
-      .then((t) => {
-        if (!cancelled) setText(t)
-      })
-      .catch((e) => {
-        if (!cancelled) setErr(e.message || 'Could not load instructions.')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 py-10 px-4">
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">Desktop tracking setup</h1>
-          <div className="flex gap-3 text-sm">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 px-4 py-10">
+      <div className="mx-auto max-w-3xl">
+        <div className="rounded-3xl border border-indigo-100 bg-white/90 p-8 shadow-lg backdrop-blur-sm sm:p-10">
+          <h1 className="mb-8 text-center text-2xl font-bold text-gray-900 sm:text-3xl">
+            Desktop Tracking Setup
+          </h1>
+
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <a
               href="/releases/SETUP.md"
               download
-              className="font-semibold text-indigo-600 hover:text-indigo-700"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 sm:w-auto"
             >
-              Download SETUP.md
+              Download Setup
             </a>
-            <Link href="/download?from=tracking-setup" className="font-semibold text-indigo-600 hover:text-indigo-700">
-              Desktop installer
-            </Link>
-            <Link href="/dashboard" className="font-semibold text-indigo-600 hover:text-indigo-700">
-              Dashboard
+            <Link
+              href="/dashboard"
+              className="inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 sm:w-auto"
+            >
+              Go Back
             </Link>
           </div>
-        </div>
-        <div className="bg-white/90 rounded-2xl border border-gray-100 shadow-sm p-6">
-          {err ? (
-            <p className="text-red-600 text-sm">{err}</p>
-          ) : !text ? (
-            <p className="text-gray-500 text-sm">Loading…</p>
-          ) : (
-            <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">{text}</pre>
-          )}
         </div>
       </div>
     </div>

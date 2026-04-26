@@ -261,7 +261,7 @@ export default function DashboardPage() {
               />
             </div>
             <div>
-              <FeedbackPanel messages={[]} />
+              <FeedbackPanel messages={Array.isArray(live?.feedback_messages) ? live.feedback_messages : []} />
             </div>
           </div>
         </main>

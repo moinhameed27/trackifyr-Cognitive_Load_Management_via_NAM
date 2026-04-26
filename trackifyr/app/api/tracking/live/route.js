@@ -1,4 +1,5 @@
 import { getSessionTokenFromRequest } from '@/lib/auth-session'
+import { sanitizeTrackingLivePayload } from '@/lib/trackingFeedback'
 import { getTrackingLive } from '@/lib/trackingStore'
 import {
   getTrackingLivePayloadForUser,
@@ -16,6 +17,7 @@ const NO_DATA = {
   engagement: null,
   final_cognitive_load: null,
   daily_avg_activity_pct: null,
+  feedback_messages: [],
 }
 
 /**
@@ -43,7 +45,7 @@ export async function GET(request) {
           return Response.json({ ...NO_DATA, daily_avg_activity_pct: dailyAvg })
         }
         return Response.json({
-          ...row.payload,
+          ...sanitizeTrackingLivePayload(row.payload),
           hasData: true,
           daily_avg_activity_pct: dailyAvg,
         })
@@ -66,7 +68,7 @@ export async function GET(request) {
         const keys = Object.keys(j.fused)
         if (keys.length > 0) {
           return Response.json({
-            ...j.fused,
+            ...sanitizeTrackingLivePayload(j.fused),
             hasData: true,
             daily_avg_activity_pct: null,
           })
@@ -79,7 +81,7 @@ export async function GET(request) {
 
   const mem = getTrackingLive()
   if (mem && typeof mem === 'object') {
-    return Response.json({ ...mem, hasData: true, daily_avg_activity_pct: null })
+    return Response.json({ ...sanitizeTrackingLivePayload(mem), hasData: true, daily_avg_activity_pct: null })
   }
   return Response.json(NO_DATA)
 }
